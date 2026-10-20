@@ -1,0 +1,43 @@
+# Déploiement de référence : PostgreSQL + migrations + application.
+# NON TESTÉ sur le poste de développement initial (Docker absent).
+# Les secrets sont lus depuis un fichier .env (voir .env.example), jamais versionné.
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gestion
+      POSTGRES_USER: gestion
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gestion -d gestion"]
+      interval: 5s
+      retries: 10
+
+  migrate:
+    build: .
+    command: ["node_modules/.bin/tsx", "scripts/migrate.ts"]
+    environment:
+      DATABASE_URL: postgres://gestion:${POSTGRES_PASSWORD}@db:5432/gestion
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://gestion:${POSTGRES_PASSWORD}@db:5432/gestion
+      APP_ENV: production
+      APP_URL: ${APP_URL:-https://gestion.exemple.fr}
+      ALLOW_SELF_SIGNUP: ${ALLOW_SELF_SIGNUP:-false}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

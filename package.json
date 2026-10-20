@@ -1,0 +1,55 @@
+{
+  "name": "logiciel-gestion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Logiciel de gestion commerciale et comptable pour TPE/PME françaises",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed-demo": "tsx scripts/seed-demo.ts",
+    "audit:verify": "tsx scripts/verify-audit.ts",
+    "check": "npm run typecheck && npm run lint && npm run test"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.5.10",
+    "@hookform/resolvers": "5.9.2",
+    "clsx": "^2.1.1",
+    "decimal.js": "10.6.0",
+    "drizzle-orm": "0.45.4",
+    "lucide-react": "1.60.0",
+    "next": "16.4.2",
+    "pg": "8.23.1",
+    "radix-ui": "1.8.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-hook-form": "7.90.0",
+    "server-only": "^0.0.1",
+    "sonner": "2.0.8",
+    "tailwind-merge": "^3.3.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "drizzle-kit": "0.31.11",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.2",
+    "tailwindcss": "4.3.3",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  }
+}
