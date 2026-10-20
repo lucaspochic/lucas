@@ -42,7 +42,7 @@ export function AddMemberForm({ canGrantOwner }: { canGrantOwner: boolean }) {
   );
 
   return (
-    <form onSubmit={onSubmit} noValidate className="flex flex-wrap items-start gap-3 px-5 py-4">
+    <form method="post" onSubmit={onSubmit} noValidate className="flex flex-wrap items-start gap-3 px-5 py-4">
       <Field label="Adresse e-mail" htmlFor="member-email" error={formState.errors.email?.message} className="min-w-64 flex-1">
         <Input id="member-email" type="email" aria-invalid={!!formState.errors.email} {...register("email")} />
       </Field>

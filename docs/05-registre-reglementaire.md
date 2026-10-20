@@ -46,9 +46,9 @@ Légende du statut : ✅ implémenté et testé · 🟡 partiellement · ⬜ à 
 |---|---|
 | **Source** | CGI art. 242 nonies A (annexe II) ; code de commerce art. L. 441-9, L. 441-10, D. 441-5, R. 123-237 |
 | **Exigence** | Numéro unique et chronologique ; date ; identité, adresse, SIREN, n° TVA du vendeur et de l'acheteur ; désignation, quantité, prix unitaire HT, taux et montant de TVA par taux ; réductions ; date de paiement ; pénalités de retard et indemnité forfaitaire de 40 € ; mentions d'exonération (ex. « TVA non applicable, art. 293 B du CGI »). |
-| **Fonctions** | Paramètres entreprise (✅), moteur de calcul avec motif d'exonération obligatoire à 0 % (✅), numérotation continue (✅), génération des factures (⬜). |
-| **Tests** | `tests/unit/document-totals.test.ts`, `tests/integration/audit-immutability.test.ts` |
-| **Limites** | Le texte exact de l'art. 242 nonies A n'a pas été relu pour cette version ❓. |
+| **Fonctions** | Paramètres entreprise (✅) ; moteur de calcul avec motif d'exonération obligatoire à 0 % (✅) ; numérotation continue par type et exercice (✅) ; émission des devis, factures et avoirs (✅ itération 3) : date d'émission = jour de l'émission, copies figées des coordonnées vendeur / client, ventilation de TVA par taux, mentions d'exonération, référence de la facture d'origine sur l'avoir, pénalités et indemnité de 40 € affichées pour les clients professionnels ; contrôles bloquants avant émission (adresse, SIREN, n° TVA, pénalités) ; version imprimable / PDF (✅). |
+| **Tests** | `tests/unit/document-totals.test.ts`, `tests/integration/audit-immutability.test.ts`, `tests/integration/sales.test.ts` |
+| **Limites** | Le texte exact de l'art. 242 nonies A n'a pas été relu pour cette version ❓. Escompte pour paiement anticipé : mention libre (texte des pénalités). Factures d'acompte : à venir. Le PDF produit n'est pas une facture électronique au sens de la réforme (R4). |
 
 ## R3 — Délais de paiement
 

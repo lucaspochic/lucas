@@ -2,7 +2,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { sessions } from "@/server/db/schema";
 import type { DbHandle } from "@/server/db/client";
-import { changePassword, login, logout, MAX_FAILURES_PER_EMAIL, registerUser, validateSession } from "@/server/services/auth";
+import {
+  adminResetPassword,
+  changePassword,
+  login,
+  logout,
+  MAX_FAILURES_PER_EMAIL,
+  registerUser,
+  validateSession,
+} from "@/server/services/auth";
 import { verifyAuditChain } from "@/server/services/audit";
 import { createTestDb } from "../helpers/db";
 
@@ -76,6 +84,16 @@ describe("authentification", () => {
     expect(await validateSession(h.db, token)).toBeNull();
     await expect(login(h.db, { email: "alice@exemple.fr", password: PASSWORD })).rejects.toThrow();
     await expect(login(h.db, { email: "alice@exemple.fr", password: "nouveau-mot-de-passe-long" })).resolves.toBeTruthy();
+  });
+
+  it("la réinitialisation administrateur change le mot de passe et ferme les sessions", async () => {
+    const { token } = await login(h.db, { email: "alice@exemple.fr", password: "nouveau-mot-de-passe-long" });
+    const fresh = await adminResetPassword(h.db, "ALICE@exemple.fr");
+    expect(fresh.length).toBeGreaterThanOrEqual(24);
+    expect(await validateSession(h.db, token)).toBeNull();
+    await expect(login(h.db, { email: "alice@exemple.fr", password: "nouveau-mot-de-passe-long" })).rejects.toThrow();
+    await expect(login(h.db, { email: "alice@exemple.fr", password: fresh })).resolves.toBeTruthy();
+    await expect(adminResetPassword(h.db, "personne@exemple.fr")).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("trace les événements d'authentification dans une chaîne valide", async () => {

@@ -309,6 +309,7 @@ export const products = pgTable(
   },
   (t) => [
     uniqueIndex("products_company_reference_uq").on(t.companyId, sql`lower(${t.reference})`),
+    uniqueIndex("products_id_company_uq").on(t.id, t.companyId),
     index("products_company_name_idx").on(t.companyId, sql`lower(${t.name})`),
     index("products_company_barcode_idx").on(t.companyId, t.barcode),
     check("products_price_ck", sql`${t.unitPriceExclTax} >= 0`),
@@ -319,6 +320,143 @@ export const products = pgTable(
       foreignColumns: [vatRates.id, vatRates.companyId],
     }).onDelete("restrict"),
     check("products_purchase_ck", sql`${t.purchasePriceExclTax} is null or ${t.purchasePriceExclTax} >= 0`),
+  ],
+);
+
+// ─── Ventes : devis, factures, avoirs ───────────────────────────────────────
+
+export const salesDocumentTypeEnum = pgEnum("sales_document_type", ["quote", "invoice", "credit_note"]);
+/**
+ * draft : brouillon modifiable, sans numéro ; issued : émis (numéroté, figé) ;
+ * accepted / refused : réponse du client à un devis émis.
+ */
+export const salesDocumentStatusEnum = pgEnum("sales_document_status", ["draft", "issued", "accepted", "refused"]);
+export const operationCategoryEnum = pgEnum("operation_category", ["goods", "services", "mixed"]);
+
+export const salesDocuments = pgTable(
+  "sales_documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    type: salesDocumentTypeEnum("type").notNull(),
+    status: salesDocumentStatusEnum("status").notNull().default("draft"),
+    /** Attribué à l'émission uniquement ; null pour un brouillon. */
+    number: text("number"),
+    fiscalYear: integer("fiscal_year"),
+    thirdPartyId: uuid("third_party_id").notNull(),
+    /** Devis d'origine (facture) ou facture d'origine (avoir). */
+    sourceDocumentId: uuid("source_document_id"),
+    issueDate: text("issue_date"),
+    /** Échéance de paiement (facture) ou fin de validité (devis). */
+    dueDate: text("due_date"),
+    /** Date de la livraison ou de la prestation, si différente de la date d'émission. */
+    deliveryDate: text("delivery_date"),
+    operationCategory: operationCategoryEnum("operation_category"),
+    globalDiscountPercent: numeric("global_discount_percent", { precision: 5, scale: 2 }).notNull().default("0"),
+    totalExclTax: numeric("total_excl_tax", { precision: 15, scale: 2 }).notNull().default("0"),
+    totalVat: numeric("total_vat", { precision: 15, scale: 2 }).notNull().default("0"),
+    totalInclTax: numeric("total_incl_tax", { precision: 15, scale: 2 }).notNull().default("0"),
+    /** Montant réglé (mis à jour par le module de règlements). */
+    amountPaid: numeric("amount_paid", { precision: 15, scale: 2 }).notNull().default("0"),
+    currency: text("currency").notNull().default("EUR"),
+    notes: text("notes"),
+    /** Coordonnées figées du vendeur et du client à l'émission (mentions obligatoires). */
+    sellerSnapshot: jsonb("seller_snapshot"),
+    customerSnapshot: jsonb("customer_snapshot"),
+    /** Empreinte SHA-256 du contenu émis (contrôle d'intégrité, reprise dans le journal d'audit). */
+    contentHash: text("content_hash"),
+    issuedAt: timestamp("issued_at", { withTimezone: true }),
+    issuedBy: uuid("issued_by").references(() => users.id, { onDelete: "restrict" }),
+    respondedAt: timestamp("responded_at", { withTimezone: true }),
+    createdBy: uuid("created_by").notNull().references(() => users.id, { onDelete: "restrict" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("sales_documents_id_company_uq").on(t.id, t.companyId),
+    uniqueIndex("sales_documents_number_uq").on(t.companyId, t.number),
+    index("sales_documents_list_idx").on(t.companyId, t.type, t.status, t.issueDate),
+    index("sales_documents_party_idx").on(t.companyId, t.thirdPartyId),
+    index("sales_documents_source_idx").on(t.companyId, t.sourceDocumentId),
+    foreignKey({
+      name: "sales_documents_third_party_company_fk",
+      columns: [t.thirdPartyId, t.companyId],
+      foreignColumns: [thirdParties.id, thirdParties.companyId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "sales_documents_source_company_fk",
+      columns: [t.sourceDocumentId, t.companyId],
+      foreignColumns: [t.id, t.companyId],
+    }).onDelete("restrict"),
+    check("sales_documents_number_ck", sql`(${t.status} = 'draft') = (${t.number} is null)`),
+    check(
+      "sales_documents_issued_ck",
+      sql`${t.status} = 'draft' or (${t.issueDate} is not null and ${t.contentHash} is not null and ${t.issuedAt} is not null and ${t.fiscalYear} is not null)`,
+    ),
+    check("sales_documents_response_ck", sql`${t.status} not in ('accepted', 'refused') or ${t.type} = 'quote'`),
+    check("sales_documents_credit_source_ck", sql`${t.type} <> 'credit_note' or ${t.sourceDocumentId} is not null`),
+    check("sales_documents_discount_ck", sql`${t.globalDiscountPercent} between 0 and 100`),
+    check("sales_documents_paid_ck", sql`${t.amountPaid} >= 0`),
+  ],
+);
+
+export const salesDocumentLines = pgTable(
+  "sales_document_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    documentId: uuid("document_id").notNull(),
+    position: integer("position").notNull(),
+    productId: uuid("product_id"),
+    reference: text("reference"),
+    description: text("description").notNull(),
+    kind: productKindEnum("kind").notNull(),
+    quantity: numeric("quantity", { precision: 15, scale: 3 }).notNull(),
+    unit: text("unit").notNull(),
+    unitPriceExclTax: numeric("unit_price_excl_tax", { precision: 15, scale: 4 }).notNull(),
+    discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).notNull().default("0"),
+    vatRate: numeric("vat_rate", { precision: 5, scale: 2 }).notNull(),
+    vatExemptionReason: text("vat_exemption_reason"),
+    totalExclTax: numeric("total_excl_tax", { precision: 15, scale: 2 }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("sales_document_lines_position_uq").on(t.documentId, t.position),
+    foreignKey({
+      name: "sales_document_lines_document_company_fk",
+      columns: [t.documentId, t.companyId],
+      foreignColumns: [salesDocuments.id, salesDocuments.companyId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "sales_document_lines_product_company_fk",
+      columns: [t.productId, t.companyId],
+      foreignColumns: [products.id, products.companyId],
+    }).onDelete("restrict"),
+    check("sales_document_lines_qty_ck", sql`${t.quantity} > 0`),
+    check("sales_document_lines_price_ck", sql`${t.unitPriceExclTax} >= 0`),
+    check("sales_document_lines_discount_ck", sql`${t.discountPercent} between 0 and 100`),
+    check("sales_document_lines_vat_ck", sql`${t.vatRate} > 0 or ${t.vatExemptionReason} is not null`),
+  ],
+);
+
+/** Ventilation de la TVA par taux, calculée et figée à l'émission. */
+export const salesDocumentVat = pgTable(
+  "sales_document_vat",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    documentId: uuid("document_id").notNull(),
+    vatRate: numeric("vat_rate", { precision: 5, scale: 2 }).notNull(),
+    vatExemptionReason: text("vat_exemption_reason"),
+    baseExclTax: numeric("base_excl_tax", { precision: 15, scale: 2 }).notNull(),
+    vatAmount: numeric("vat_amount", { precision: 15, scale: 2 }).notNull(),
+  },
+  (t) => [
+    index("sales_document_vat_document_idx").on(t.documentId),
+    foreignKey({
+      name: "sales_document_vat_document_company_fk",
+      columns: [t.documentId, t.companyId],
+      foreignColumns: [salesDocuments.id, salesDocuments.companyId],
+    }).onDelete("cascade"),
   ],
 );
 
@@ -346,3 +484,6 @@ export type ThirdParty = typeof thirdParties.$inferSelect;
 export type Contact = typeof contacts.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type VatRate = typeof vatRates.$inferSelect;
+export type SalesDocument = typeof salesDocuments.$inferSelect;
+export type SalesDocumentLine = typeof salesDocumentLines.$inferSelect;
+export type SalesDocumentType = (typeof salesDocumentTypeEnum.enumValues)[number];

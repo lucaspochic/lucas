@@ -67,14 +67,14 @@ export function ThirdPartyForm({
   const isIndividual = partyType === "individual";
 
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-6">
+    <form method="post" onSubmit={onSubmit} noValidate className="space-y-6">
       {error && <FormAlert>{error}</FormAlert>}
       <fieldset disabled={readOnly || pending} className="space-y-6">
         <Card>
           <CardHeader title="Identité" />
           <CardBody className="grid gap-4 sm:grid-cols-2">
             <Field label="Type" htmlFor="partyType" error={err("partyType")} required>
-              <Select id="partyType" {...register("partyType")}>
+              <Select id="partyType" defaultValue={String(defaults.partyType ?? "")} {...register("partyType")}>
                 {PARTY_TYPES.map((t) => (
                   <option key={t} value={t}>
                     {PARTY_TYPE_LABELS[t]}

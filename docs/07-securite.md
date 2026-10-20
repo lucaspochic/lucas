@@ -6,6 +6,8 @@
 | Vol de base → sessions | Seule l'empreinte SHA-256 du jeton est stockée | `services/auth.ts` | ✅ |
 | Force brute | 5 échecs / 15 min par e-mail, 30 par IP ; message générique ; temps de réponse homogène (hash factice) | `services/auth.ts` | ✅ |
 | Énumération de comptes à la connexion | Message d'erreur identique | idem | ✅ |
+| Mot de passe dans l'URL (envoi d'un formulaire avant chargement du JavaScript) | Formulaires à mot de passe en amélioration progressive (Server Action en `action`, POST natif) ; `method="post"` imposé à tous les autres | `app/actions/auth.ts`, formulaires | ✅ `forms-guard.test.ts` (faille constatée et corrigée le 20/10/2026) |
+| Perte d'accès à un compte | Réinitialisation par l'administrateur technique (`npm run user:reset-password`) | `adminResetPassword` | ✅ |
 | Vol de cookie | HttpOnly, SameSite=Lax, Secure + préfixe `__Host-` en production | `http/session.ts` | — |
 | Session persistante après changement de mot de passe | Révocation de toutes les sessions | `changePassword` | ✅ |
 | CSRF | Server Actions : contrôle de l'en-tête Origin par Next.js ; SameSite=Lax | Next.js | — |

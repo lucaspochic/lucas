@@ -42,3 +42,19 @@ Signature commune : `(db, ctx: CompanyContext, input: unknown)`. L'entrée est r
 | `importProductsAction` | `catalog.write` | un `product.created` par ligne ; tout ou rien |
 
 Règle : les schémas Zod partagés sont **idempotents** (le formulaire envoie la sortie du schéma, que le serveur revalide) — testé dans `tests/unit/schemas.test.ts`.
+
+## Server Actions — itération 3 (ventes)
+
+| Action | Permission | Effet | Audit |
+|---|---|---|---|
+| `createSalesDraftAction(type, valeurs)` | `sales.write` | Brouillon de devis ou de facture, montants recalculés | `sales_document.draft_created` |
+| `updateSalesDraftAction` | `sales.write` | Remplace lignes et totaux d'un brouillon | `sales_document.draft_updated` |
+| `deleteSalesDraftAction` | `sales.write` | Supprime un brouillon (jamais un document émis) | `sales_document.draft_deleted` |
+| `issueSalesDocumentAction(id, accepterAvertissements)` | `sales.issue` | Numéro, date du jour, copies figées, empreinte ; renvoie les avertissements à confirmer | `sales_document.issued` (avec l'empreinte) |
+| `respondToQuoteAction` | `sales.write` | Devis émis → accepté / refusé | `sales_document.quote_*` |
+| `convertQuoteAction` | `sales.write` | Brouillon de facture depuis un devis (une seule fois) | `sales_document.invoice_from_quote` |
+| `createCreditNoteAction` | `sales.write` | Brouillon d'avoir reprenant la facture | `sales_document.credit_note_drafted` |
+
+Page d'impression : `GET /impression/ventes/{id}` (session requise, documents émis uniquement).
+
+Les formulaires d'authentification utilisent `loginFormAction`, `registerFormAction`, `changePasswordFormAction` (FormData, amélioration progressive).

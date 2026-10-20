@@ -36,7 +36,7 @@ function navSections({ canSeeAudit, canManageMembers }: NavProps) {
     { href: "/tableau-de-bord", label: "Tableau de bord", icon: LayoutDashboard },
     { href: "/tiers", label: "Clients & fournisseurs", icon: Users },
     { href: "/catalogue", label: "Produits & services", icon: Package },
-    { href: "#ventes", label: "Devis & factures", icon: FileText, upcoming: true },
+    { href: "/ventes", label: "Devis & factures", icon: FileText },
     { href: "#tresorerie", label: "Trésorerie", icon: Wallet, upcoming: true },
     { href: "#comptabilite", label: "Comptabilité", icon: BookOpen, upcoming: true },
     { href: "#caisse", label: "Caisse", icon: Store, upcoming: true },

@@ -28,6 +28,14 @@ const ACTION_LABELS: Record<string, string> = {
   "product.updated": "Modification d'un article",
   "product.archived": "Archivage d'un article",
   "product.restored": "Restauration d'un article",
+  "sales_document.draft_created": "Création d'un brouillon",
+  "sales_document.draft_updated": "Modification d'un brouillon",
+  "sales_document.draft_deleted": "Suppression d'un brouillon",
+  "sales_document.issued": "Émission d'un document",
+  "sales_document.quote_accepted": "Devis accepté",
+  "sales_document.quote_refused": "Devis refusé",
+  "sales_document.invoice_from_quote": "Facture créée depuis un devis",
+  "sales_document.credit_note_drafted": "Brouillon d'avoir",
 };
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
@@ -140,6 +148,15 @@ const FIELD_LABELS: Record<string, string> = {
   barcode: "Code-barres",
   fullName: "Nom",
   source: "Origine",
+  number: "Numéro",
+  issueDate: "Date",
+  customer: "Client",
+  totalExclTax: "HT",
+  totalVat: "TVA",
+  totalInclTax: "TTC",
+  sourceNumber: "Origine",
+  contentHash: "Empreinte",
+  type: "Type",
   from: "Avant",
   to: "Après",
 };

@@ -61,7 +61,7 @@ export function CompanyForm({ defaults, readOnly, vatRates }: { defaults: Compan
   );
 
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-6">
+    <form method="post" onSubmit={onSubmit} noValidate className="space-y-6">
       <fieldset disabled={readOnly || pending} className="space-y-6">
         <Card>
           <CardHeader title="Identité" description="Mentions obligatoires sur les factures." />
@@ -69,7 +69,7 @@ export function CompanyForm({ defaults, readOnly, vatRates }: { defaults: Compan
             {text("legalName", "Raison sociale", { required: true })}
             {text("tradeName", "Nom commercial")}
             <Field label="Forme juridique" htmlFor="legalForm" error={err("legalForm")}>
-              <Select id="legalForm" {...register("legalForm")}>
+              <Select id="legalForm" defaultValue={String(defaults.legalForm ?? "")} {...register("legalForm")}>
                 <option value="">—</option>
                 {LEGAL_FORMS.map((f) => (
                   <option key={f} value={f}>
@@ -104,7 +104,7 @@ export function CompanyForm({ defaults, readOnly, vatRates }: { defaults: Compan
           <CardHeader title="Fiscalité" description="Détermine les taux et mentions appliqués aux documents." />
           <CardBody className="grid gap-4 sm:grid-cols-2">
             <Field label="Régime de TVA" htmlFor="vatRegime" error={err("vatRegime")}>
-              <Select id="vatRegime" {...register("vatRegime")}>
+              <Select id="vatRegime" defaultValue={String(defaults.vatRegime ?? "")} {...register("vatRegime")}>
                 {VAT_REGIMES.map((r) => (
                   <option key={r} value={r}>
                     {VAT_REGIME_LABELS[r]}
@@ -114,7 +114,7 @@ export function CompanyForm({ defaults, readOnly, vatRates }: { defaults: Compan
             </Field>
             {text("vatNumber", "N° de TVA intracommunautaire", { placeholder: "FR00123456789" })}
             <Field label="Début d'exercice" htmlFor="fiscalYearStartMonth" error={err("fiscalYearStartMonth")}>
-              <Select id="fiscalYearStartMonth" {...register("fiscalYearStartMonth")}>
+              <Select id="fiscalYearStartMonth" defaultValue={String(defaults.fiscalYearStartMonth ?? "")} {...register("fiscalYearStartMonth")}>
                 {MONTHS.map((m, i) => (
                   <option key={m} value={i + 1}>
                     1er {m}

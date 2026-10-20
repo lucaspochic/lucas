@@ -54,3 +54,20 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+  body {
+    background: #fff;
+  }
+  .document-sheet {
+    max-width: none;
+    padding: 0;
+  }
+  .document-sheet tr {
+    break-inside: avoid;
+  }
+}

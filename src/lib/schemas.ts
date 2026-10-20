@@ -258,6 +258,46 @@ export const productSchema = z.object({
 export type ProductInput = z.input<typeof productSchema>;
 export type ProductData = z.output<typeof productSchema>;
 
+// ─── Documents de vente ─────────────────────────────────────────────────────
+
+const decimalField = (label: string, maxDecimals: number, opts: { positive?: boolean; max?: number } = {}) =>
+  z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/[\s  €%]/g, "").replace(",", "."))
+    .refine((v) => new RegExp(`^\\d{1,11}(\\.\\d{1,${maxDecimals}})?$`).test(v), `${label} : nombre positif, ${maxDecimals} décimales au maximum.`)
+    .refine((v) => !opts.positive || Number(v) > 0, `${label} : doit être supérieur à zéro.`)
+    .refine((v) => opts.max === undefined || Number(v) <= opts.max, `${label} : ${opts.max} au maximum.`);
+
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide.");
+
+export const salesLineSchema = z.object({
+  productId: z.uuid().nullable().optional(),
+  reference: optionalText(40),
+  description: z.string().trim().min(1, "Désignation requise.").max(2000),
+  kind: z.enum(PRODUCT_KINDS),
+  quantity: decimalField("Quantité", 3, { positive: true }),
+  unit: z.enum(UNITS),
+  unitPriceExclTax: decimalField("Prix unitaire HT", 4),
+  discountPercent: decimalField("Remise", 2, { max: 100 }).default("0"),
+  vatRateId: z.uuid("Taux de TVA requis."),
+});
+export type SalesLineInput = z.input<typeof salesLineSchema>;
+
+export const salesDraftSchema = z.object({
+  thirdPartyId: z.uuid("Client requis."),
+  deliveryDate: z
+    .union([z.literal(""), isoDate])
+    .transform((v) => (v === "" ? null : v))
+    .nullable()
+    .optional(),
+  globalDiscountPercent: decimalField("Remise globale", 2, { max: 100 }).default("0"),
+  notes: optionalText(2000),
+  lines: z.array(salesLineSchema).min(1, "Ajoutez au moins une ligne.").max(200, "200 lignes au maximum."),
+});
+export type SalesDraftInput = z.input<typeof salesDraftSchema>;
+export type SalesDraftData = z.output<typeof salesDraftSchema>;
+
 export const MEMBER_ROLES =["owner", "admin", "accountant", "sales", "cashier", "viewer"] as const;
 export const addMemberSchema = z.object({
   email: emailSchema,

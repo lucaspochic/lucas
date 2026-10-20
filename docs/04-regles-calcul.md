@@ -38,3 +38,9 @@ Format `PRÉFIXE-EXERCICE-NNNNN` ; une série continue par (entreprise, type de 
 
 ## 6. Exercice
 L'exercice d'une date est désigné par l'année de sa clôture : début au 1er juillet → le 01/07/2026 appartient à l'exercice 2027. Les dates légales sont évaluées dans le fuseau Europe/Paris.
+
+## 7. Documents de vente (itération 3)
+- Les montants d'un **avoir** sont enregistrés en **valeurs positives** ; le sens (diminution du chiffre d'affaires et de la TVA collectée) est porté par le type `credit_note`. Tout agrégat (chiffre d'affaires, TVA, encours) doit donc retrancher les avoirs émis.
+- Le total HT d'une ligne est stocké **avant** remise globale ; la remise globale est appliquée par le moteur de calcul ligne par ligne puis regroupée par taux (§2). Le document affiche « Total lignes HT », « Remise globale », « Total HT ».
+- Cumul des avoirs d'une facture ≤ total TTC de la facture (contrôle à l'émission, sous verrou de la facture d'origine).
+- Échéance d'une facture = date d'émission + délai du client (à défaut, délai de l'entreprise) ; validité d'un devis : 30 jours.

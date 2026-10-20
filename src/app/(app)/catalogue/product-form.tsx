@@ -86,7 +86,7 @@ export function ProductForm({
   );
 
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-6">
+    <form method="post" onSubmit={onSubmit} noValidate className="space-y-6">
       {error && <FormAlert>{error}</FormAlert>}
       <fieldset disabled={readOnly || pending} className="space-y-6">
         <Card>
@@ -94,7 +94,7 @@ export function ProductForm({
           <CardBody className="grid gap-4 sm:grid-cols-2">
             {text("reference", "Référence", { required: true, hint: "Unique dans le catalogue." })}
             <Field label="Nature" htmlFor="kind" error={err("kind")} required hint="Catégorie d'opération exigée par la facturation électronique.">
-              <Select id="kind" {...register("kind")}>
+              <Select id="kind" defaultValue={String(defaults.kind ?? "")} {...register("kind")}>
                 {PRODUCT_KINDS.map((k) => (
                   <option key={k} value={k}>
                     {PRODUCT_KIND_LABELS[k]}
@@ -116,7 +116,7 @@ export function ProductForm({
           <CardBody className="grid gap-4 sm:grid-cols-2">
             {text("unitPriceExclTax", "Prix de vente HT (€)", { required: true, inputMode: "decimal", placeholder: "0,00" })}
             <Field label="Unité" htmlFor="unit" error={err("unit")} required>
-              <Select id="unit" {...register("unit")}>
+              <Select id="unit" defaultValue={String(defaults.unit ?? "")} {...register("unit")}>
                 {UNITS.map((u) => (
                   <option key={u} value={u}>
                     {u}
@@ -125,7 +125,7 @@ export function ProductForm({
               </Select>
             </Field>
             <Field label="Taux de TVA" htmlFor="vatRateId" error={err("vatRateId")} required>
-              <Select id="vatRateId" {...register("vatRateId")}>
+              <Select id="vatRateId" defaultValue={String(defaults.vatRateId ?? "")} {...register("vatRateId")}>
                 {rates.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.label}

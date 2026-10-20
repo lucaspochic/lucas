@@ -201,6 +201,31 @@ export async function changePassword(db: Db, session: SessionInfo, raw: unknown)
   });
 }
 
+/**
+ * Réinitialisation par un administrateur technique (ligne de commande, accès serveur requis) :
+ * nouveau mot de passe aléatoire, révocation de toutes les sessions, événement d'audit.
+ * Palliatif tant que la réinitialisation par e-mail (service d'envoi) n'est pas branchée.
+ */
+export async function adminResetPassword(db: Db, email: string): Promise<string> {
+  const normalized = email.trim().toLowerCase();
+  const [user] = await db.select().from(users).where(sql`lower(${users.email}) = ${normalized}`).limit(1);
+  if (!user) throw new AppError("NOT_FOUND", "Aucun compte avec cette adresse.");
+  const password = randomBytes(18).toString("base64url");
+  const passwordHash = await hashPassword(password);
+  await db.transaction(async (tx) => {
+    await tx.update(users).set({ passwordHash, passwordChangedAt: new Date(), updatedAt: new Date() }).where(eq(users.id, user.id));
+    await tx.delete(sessions).where(eq(sessions.userId, user.id));
+    await appendAuditEvent(tx, {
+      companyId: null,
+      actorUserId: null,
+      action: "user.password_reset_by_admin",
+      entityType: "user",
+      entityId: user.id,
+    });
+  });
+  return password;
+}
+
 /** Purge des sessions expirées et des tentatives anciennes (minimisation RGPD). */
 export async function purgeExpiredAuthData(db: Db) {
   await db.delete(sessions).where(sql`${sessions.expiresAt} < now()`);

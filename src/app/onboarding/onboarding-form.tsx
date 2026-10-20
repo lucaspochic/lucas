@@ -31,7 +31,7 @@ export function OnboardingForm() {
   );
 
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-4">
+    <form method="post" onSubmit={onSubmit} noValidate className="space-y-4">
       {error && <FormAlert>{error}</FormAlert>}
       <Field label="Raison sociale" htmlFor="legalName" required error={e.legalName?.message}>
         <Input id="legalName" autoFocus aria-invalid={!!e.legalName} {...register("legalName")} />

@@ -126,7 +126,7 @@ export function ContactsPanel({ thirdPartyId, contacts, canWrite }: { thirdParty
       )}
       {adding && (
         <CardBody className="border-t border-border">
-          <form onSubmit={onSubmit} noValidate className="space-y-3">
+          <form method="post" onSubmit={onSubmit} noValidate className="space-y-3">
             <Field label="Nom" htmlFor="c-fullName" error={e.fullName?.message} required>
               <Input id="c-fullName" autoFocus aria-invalid={!!e.fullName} {...register("fullName")} />
             </Field>

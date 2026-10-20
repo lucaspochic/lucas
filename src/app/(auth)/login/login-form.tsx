@@ -1,44 +1,22 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import type { z } from "zod";
-import { loginSchema } from "@/lib/schemas";
-import { loginAction } from "@/app/actions/auth";
+import { useActionState } from "react";
+import { loginFormAction, type CredentialFormState } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/form-controls";
 import { FormAlert } from "@/components/ui/form-alert";
 
-type Values = z.input<typeof loginSchema>;
-
+/** Formulaire en amélioration progressive : POST garanti, même avant le chargement du JavaScript. */
 export function LoginForm() {
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const { register, handleSubmit, formState } = useForm<Values>({ resolver: zodResolver(loginSchema), mode: "onTouched" });
-
-  const onSubmit = handleSubmit((values) =>
-    startTransition(async () => {
-      setError(null);
-      const result = await loginAction(values);
-      if (result && !result.ok) setError(result.error);
-    }),
-  );
-
+  const [state, action, pending] = useActionState<CredentialFormState, FormData>(loginFormAction, {});
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-4">
-      {error && <FormAlert>{error}</FormAlert>}
-      <Field label="Adresse e-mail" htmlFor="email" error={formState.errors.email?.message}>
-        <Input id="email" type="email" autoComplete="username" autoFocus aria-invalid={!!formState.errors.email} {...register("email")} />
+    <form action={action} className="space-y-4">
+      {state.error && <FormAlert>{state.error}</FormAlert>}
+      <Field label="Adresse e-mail" htmlFor="email">
+        <Input id="email" name="email" type="email" autoComplete="username" required autoFocus defaultValue={state.values?.email} />
       </Field>
-      <Field label="Mot de passe" htmlFor="password" error={formState.errors.password?.message}>
-        <Input
-          id="password"
-          type="password"
-          autoComplete="current-password"
-          aria-invalid={!!formState.errors.password}
-          {...register("password")}
-        />
+      <Field label="Mot de passe" htmlFor="password">
+        <Input id="password" name="password" type="password" autoComplete="current-password" required maxLength={256} />
       </Field>
       <Button type="submit" className="w-full" loading={pending}>
         Se connecter

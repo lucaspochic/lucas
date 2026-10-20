@@ -1,42 +1,26 @@
 "use client";
 
-import { useTransition } from "react";
-import { useForm, type FieldPath } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "sonner";
-import type { z } from "zod";
-import { changePasswordSchema } from "@/lib/schemas";
-import { changePasswordAction } from "@/app/actions/auth";
+import { useActionState } from "react";
+import { changePasswordFormAction, type CredentialFormState } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/form-controls";
+import { FormAlert } from "@/components/ui/form-alert";
 
-type Values = z.input<typeof changePasswordSchema>;
-
+/** Formulaire en amélioration progressive : POST garanti, même avant le chargement du JavaScript. */
 export function ChangePasswordForm() {
-  const [pending, startTransition] = useTransition();
-  const { register, handleSubmit, formState, setError } = useForm<Values>({ resolver: zodResolver(changePasswordSchema), mode: "onTouched" });
-  const e = formState.errors;
-
-  const onSubmit = handleSubmit((values) =>
-    startTransition(async () => {
-      const result = await changePasswordAction(values);
-      if (result && !result.ok) {
-        toast.error(result.error);
-        for (const [field, message] of Object.entries(result.fieldErrors ?? {})) setError(field as FieldPath<Values>, { message });
-      }
-    }),
-  );
-
+  const [state, action, pending] = useActionState<CredentialFormState, FormData>(changePasswordFormAction, {});
+  const e = state.fieldErrors ?? {};
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-4">
-      <Field label="Mot de passe actuel" htmlFor="currentPassword" error={e.currentPassword?.message}>
-        <Input id="currentPassword" type="password" autoComplete="current-password" aria-invalid={!!e.currentPassword} {...register("currentPassword")} />
+    <form action={action} className="space-y-4">
+      {state.error && <FormAlert>{state.error}</FormAlert>}
+      <Field label="Mot de passe actuel" htmlFor="currentPassword" error={e.currentPassword}>
+        <Input id="currentPassword" name="currentPassword" type="password" autoComplete="current-password" required aria-invalid={!!e.currentPassword} />
       </Field>
-      <Field label="Nouveau mot de passe" htmlFor="newPassword" error={e.newPassword?.message} hint="12 caractères au minimum.">
-        <Input id="newPassword" type="password" autoComplete="new-password" aria-invalid={!!e.newPassword} {...register("newPassword")} />
+      <Field label="Nouveau mot de passe" htmlFor="newPassword" error={e.newPassword} hint="12 caractères au minimum.">
+        <Input id="newPassword" name="newPassword" type="password" autoComplete="new-password" required minLength={12} maxLength={256} aria-invalid={!!e.newPassword} />
       </Field>
-      <Field label="Confirmation" htmlFor="confirmPassword" error={e.confirmPassword?.message}>
-        <Input id="confirmPassword" type="password" autoComplete="new-password" aria-invalid={!!e.confirmPassword} {...register("confirmPassword")} />
+      <Field label="Confirmation" htmlFor="confirmPassword" error={e.confirmPassword}>
+        <Input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" required aria-invalid={!!e.confirmPassword} />
       </Field>
       <Button type="submit" loading={pending}>
         Modifier le mot de passe
