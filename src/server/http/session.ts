@@ -1,7 +1,9 @@
 import "server-only";
 import { cookies, headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
+import { AppError } from "../errors";
+import { can, type Permission } from "../security/permissions";
 import { getDb } from "../db/client";
 import { validateSession, type SessionInfo } from "../services/auth";
 import { resolveCompanyContext } from "../services/companies";
@@ -53,6 +55,23 @@ export async function requireSession(): Promise<SessionInfo> {
   const session = await getSession();
   if (!session) redirect("/login");
   return session;
+}
+
+/** Page réservée à une permission : sinon page 404 (on ne révèle pas l'existence de la ressource). */
+export async function requirePermission(permission: Permission) {
+  const result = await requireCompanyContext();
+  if (!can(result.ctx, permission)) notFound();
+  return result;
+}
+
+/** Convertit une erreur métier « introuvable » / « interdit » en page 404. */
+export async function orNotFound<T>(promise: Promise<T>): Promise<T> {
+  try {
+    return await promise;
+  } catch (err) {
+    if (err instanceof AppError && (err.code === "NOT_FOUND" || err.code === "FORBIDDEN")) notFound();
+    throw err;
+  }
 }
 
 /** Contexte d'entreprise vérifié en base. Redirige vers la création d'entreprise si aucune n'est active. */

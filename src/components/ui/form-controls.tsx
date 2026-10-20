@@ -29,6 +29,17 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
   );
 });
 
+export const Checkbox = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { label: ReactNode }>(
+  function Checkbox({ label, className, ...props }, ref) {
+    return (
+      <label className={cn("inline-flex cursor-pointer items-center gap-2 text-[13px] text-foreground", className)}>
+        <input ref={ref} type="checkbox" className="size-4 rounded border-border accent-[var(--color-accent)]" {...props} />
+        {label}
+      </label>
+    );
+  },
+);
+
 export function Field({
   label,
   htmlFor,

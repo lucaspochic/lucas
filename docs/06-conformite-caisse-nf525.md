@@ -55,3 +55,10 @@ Conséquence de conception : **toute** fonction qui mémorise un paiement de non
 - [ ] Faire auditer la conception (certificateur, conseil fiscal).
 - [ ] Vérifier le montant et les conditions de l'amende de l'art. 1770 duodecies CGI pour l'information des clients.
 - [ ] Rédiger la documentation utilisateur des clôtures et de l'archivage.
+
+## 6. Décisions validées par le porteur du projet (20/10/2026)
+
+- **Les entreprises clientes vendent à des particuliers** : le module de règlements et le module caisse sont dans le champ de l'art. 286 I 3° bis CGI et seront conçus selon les quatre conditions ISCA.
+- **« ISCA » = Inaltérabilité, Sécurisation, Conservation, Archivage** (confirmé).
+- Conséquence déjà implémentée : chaque tiers porte un type (particulier / professionnel / organisme public), qui permettra de déterminer les règlements soumis à ces obligations.
+- Reste à décider : certification par un organisme accrédité **ou** attestation individuelle de l'éditeur.

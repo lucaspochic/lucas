@@ -15,13 +15,16 @@ Source de vérité : `src/server/db/schema.ts`. Migrations : `drizzle/`.
 | `document_sequences` | Compteurs de numérotation | clé (entreprise, type, exercice) ; verrouillée à l'émission |
 | `audit_events` | Journal append-only chaîné | `(company, chain_seq)` unique ; `prev_hash`, `hash` ; **triggers refusant UPDATE/DELETE/TRUNCATE** |
 | `idempotency_keys` | Anti-rejeu | clé (entreprise, clé) ; empreinte de la requête ; réponse mémorisée |
+| `third_parties` | Clients et fournisseurs | type particulier / professionnel / organisme public (détermine l'application de l'art. 286 I 3° bis CGI aux règlements) ; code unique par entreprise ; SIREN, adresse de livraison distincte (mentions e-facture) ; archivage, jamais de suppression |
+| `contacts` | Contacts d'un tiers | **clé étrangère composite (tiers, entreprise)** : impossible de rattacher un contact au tiers d'une autre entreprise |
+| `products` | Catalogue | référence unique (insensible à la casse) ; nature bien / service (catégorie d'opération e-facture) ; PU HT numeric(15,4) ; **clé composite (taux de TVA, entreprise)** ; TTC jamais stocké |
 
 ## Tables planifiées
 
 | Module | Tables |
 |---|---|
-| Tiers | `third_parties` (client/fournisseur, SIREN, TVA, adresse facturation/livraison, conditions), `contacts`, `attachments` |
-| Catalogue | `products` (référence unique par entreprise, PU HT numeric(15,4), taux, unité, code-barres, archivé), `product_categories`, `stock_movements` (si stock activé) |
+| Tiers | `attachments` (pièces jointes : nécessite un stockage de fichiers, dépendance à choisir) |
+| Catalogue | `stock_movements` (si le module de stock est activé) |
 | Ventes | `sales_documents` (devis, facture, acompte, avoir ; statut ; numéro UNIQUE (entreprise, numéro) ; **colonnes figées après émission**), `sales_document_lines`, `sales_document_vat` (ventilation par taux), `document_events` |
 | Règlements | `payments` (append-only, idempotents), `payment_allocations` (lettrage paiement ↔ facture), `refunds` |
 | Trésorerie | `bank_accounts`, `bank_transactions` (import relevés, empreinte d'import anti-doublon), `reconciliations`, `expenses` |

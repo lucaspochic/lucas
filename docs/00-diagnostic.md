@@ -87,8 +87,8 @@ Réception obligatoire pour toutes les entreprises depuis le 01/09/2026 ; émiss
 | 1 | Diagnostic, architecture, registre réglementaire | ✅ cette itération |
 | 2 | Socle : Next.js, Drizzle, migrations, PGlite, tests, lint | ✅ cette itération |
 | 3 | Auth (scrypt, sessions opaques, limitation des tentatives), entreprises, rôles, isolation, journal d'audit chaîné, moteur de calcul TVA | ✅ cette itération |
-| 4 | Tiers + catalogue + import/export CSV | prochaine itération |
-| 5 | Devis/factures/avoirs, émission avec numérotation, PDF | |
+| 4 | Tiers + catalogue + import/export CSV | ✅ itération 2 |
+| 5 | Devis/factures/avoirs, émission avec numérotation, PDF | prochaine itération |
 | 6 | Encaissements idempotents, soldes, avoirs/remboursements | |
 | 7 | Tableau de bord sur données réelles | |
 | 8 | Trésorerie, dépenses, rapprochement | |

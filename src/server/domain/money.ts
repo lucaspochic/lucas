@@ -49,6 +49,23 @@ export function sum(values: readonly Dec[]): Dec {
   return values.reduce<Dec>((acc, v) => acc.plus(v), new D(0));
 }
 
+/**
+ * Prix unitaire pour l'affichage : 2 décimales minimum, jusqu'à 4 si nécessaire
+ * (« 1,1374 € », « 12,50 € »). Un prix unitaire n'est jamais arrondi à l'affichage.
+ */
+export function formatUnitPrice(value: string): string {
+  const d = dec(value);
+  const [intPart, frac = ""] = d.abs().toFixed(4).split(".");
+  const trimmed = frac.replace(/0+$/, "").padEnd(2, "0");
+  const grouped = (intPart ?? "0").replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return `${d.isNegative() ? "-" : ""}${grouped},${trimmed} €`;
+}
+
+/** Taux pour l'affichage : « 20.00 » → « 20 % », « 5.50 » → « 5,5 % ». */
+export function formatRate(value: string): string {
+  return `${dec(value).toString().replace(".", ",")} %`;
+}
+
 /** Formatage d'affichage français : « 1 234,50 € ». Ne jamais réutiliser pour un calcul. */
 export function formatEuro(value: string | Dec, currency = "EUR"): string {
   const d = typeof value === "string" ? dec(value) : value;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CalculationError, computeDocumentTotals, computeLineExclTax, priceInclTax } from "@/server/domain/document-totals";
-import { dec, formatEuro, roundMoney, toMoneyString } from "@/server/domain/money";
+import { dec, formatEuro, formatRate, formatUnitPrice, roundMoney, toMoneyString } from "@/server/domain/money";
 
 describe("arrondi monétaire", () => {
   it.each([
@@ -22,6 +22,14 @@ describe("arrondi monétaire", () => {
 
   it("0.1 + 0.2 vaut exactement 0.3", () => {
     expect(dec("0.1").plus(dec("0.2")).toString()).toBe("0.3");
+  });
+
+  it("affiche les prix unitaires sans les arrondir, et les taux sans zéros inutiles", () => {
+    expect(formatUnitPrice("1.1374")).toBe("1,1374 €");
+    expect(formatUnitPrice("12.5000")).toBe("12,50 €");
+    expect(formatUnitPrice("1234.1000")).toBe("1 234,10 €");
+    expect(formatRate("5.50")).toBe("5,5 %");
+    expect(formatRate("20.00")).toBe("20 %");
   });
 
   it("formate en euros à la française", () => {

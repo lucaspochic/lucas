@@ -65,7 +65,7 @@ Légende du statut : ✅ implémenté et testé · 🟡 partiellement · ⬜ à 
 |---|---|
 | **Source** | impots.gouv.fr — « Facturation électronique et plateformes agréées », « Je passe à la facturation électronique » (modifiée le 01/09/2026), « J'approfondis mes connaissances sur la réforme » |
 | **Exigence** | **Réception** obligatoire pour toutes les entreprises depuis le **01/09/2026** ; **émission + e-reporting** au 01/09/2026 pour GE/ETI et au **01/09/2027** pour PME et micro-entreprises. Échanges via une **plateforme agréée** ; formats **UBL, CII** ou format mixte (données structurées + image). Nouvelles mentions : SIREN du client, catégorie d'opération (biens / services / mixte), option TVA sur les débits, adresse de livraison si différente. |
-| **Fonctions** | Option TVA sur débits (✅ paramètre). SIREN client, catégorie d'opération, adresse de livraison : à intégrer au modèle des tiers et des factures (⬜). Export Factur-X / UBL / CII (⬜). Connecteur plateforme agréée (⬜ — **dépendance externe** : contrat et API d'une plateforme immatriculée). |
+| **Fonctions** | Option TVA sur débits (✅ paramètre). SIREN client, adresse de livraison distincte, nature bien / service des articles : présents dans les tiers et le catalogue (✅, itération 2) ; report sur les factures (⬜). Export Factur-X / UBL / CII (⬜). Connecteur plateforme agréée (⬜ — **dépendance externe** : contrat et API d'une plateforme immatriculée). |
 | **Limites** | Spécifications externes B2B non lues ❓ ; Factur-X n'est pas nommé explicitement dans les pages lues (format « mixte ») ❓. Un PDF seul ne suffit pas. |
 
 ## R5 — Conservation des documents et données

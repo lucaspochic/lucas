@@ -12,6 +12,23 @@ import { formatDocumentNumber, type DocumentType } from "../domain/numbering";
  * contrairement à une SEQUENCE PostgreSQL). L'unicité du numéro est en outre garantie
  * par une contrainte UNIQUE sur la table du document.
  */
+/**
+ * Compteur simple non lié à un exercice (codes clients, fournisseurs…), même table et mêmes
+ * garanties que la numérotation des documents (exercice conventionnel 0).
+ */
+export async function allocateCounter(tx: Tx, companyId: string, key: string): Promise<number> {
+  await tx.insert(documentSequences).values({ companyId, documentType: key, fiscalYear: 0, lastValue: 0 }).onConflictDoNothing();
+  const where = and(
+    eq(documentSequences.companyId, companyId),
+    eq(documentSequences.documentType, key),
+    eq(documentSequences.fiscalYear, 0),
+  );
+  const [current] = await tx.select({ lastValue: documentSequences.lastValue }).from(documentSequences).where(where).for("update");
+  const value = (current?.lastValue ?? 0) + 1;
+  await tx.update(documentSequences).set({ lastValue: value, updatedAt: sql`now()` }).where(where);
+  return value;
+}
+
 export async function allocateDocumentNumber(
   tx: Tx,
   params: { companyId: string; documentType: DocumentType; fiscalYear: number; prefix: string },

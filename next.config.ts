@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@electric-sql/pglite", "pg"],
   poweredByHeader: false,
   output: "standalone",
+  experimental: {
+    // Imports CSV (2 Mo au maximum, contrôlé aussi côté serveur) transmis par Server Action.
+    serverActions: { bodySizeLimit: "3mb" },
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

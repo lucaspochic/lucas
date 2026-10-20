@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   isValidFrenchVatNumber,
+  isValidGtin,
   isValidIban,
   isValidNafCode,
   isValidSiren,
@@ -129,7 +130,135 @@ export const createCompanySchema = z.object({
   vatRegime: z.enum(VAT_REGIMES).default("reel_normal"),
 });
 
-export const MEMBER_ROLES = ["owner", "admin", "accountant", "sales", "cashier", "viewer"] as const;
+// ─── Tiers ──────────────────────────────────────────────────────────────────
+
+export const PARTY_TYPES = ["individual", "business", "public_entity"] as const;
+export const PARTY_TYPE_LABELS: Record<(typeof PARTY_TYPES)[number], string> = {
+  individual: "Particulier",
+  business: "Professionnel",
+  public_entity: "Organisme public",
+};
+
+const emailField = optionalText(254).refine((v) => !v || z.email().safeParse(v).success, "Adresse e-mail invalide.");
+const countryField = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z]{2}$/, "Code pays ISO à 2 lettres (ex. FR).")
+  .default("FR");
+
+export const thirdPartySchema = z
+  .object({
+    code: optionalText(20).refine((v) => !v || /^[A-Za-z0-9._-]{1,20}$/.test(v), "Lettres, chiffres, « . _ - » uniquement."),
+    isCustomer: z.boolean().default(true),
+    isSupplier: z.boolean().default(false),
+    partyType: z.enum(PARTY_TYPES),
+    name: z.string().trim().min(1, "Nom requis.").max(200),
+    legalForm: optionalText(60),
+    siren: sirenField,
+    siret: siretField,
+    vatNumber: optionalText(20)
+      .transform((v) => (v ? v.replace(/\s/g, "").toUpperCase() : v))
+      .refine((v) => !v || !v.startsWith("FR") || isValidFrenchVatNumber(v), "Numéro de TVA français invalide."),
+    email: emailField,
+    phone: optionalText(30),
+    billingLine1: optionalText(),
+    billingLine2: optionalText(),
+    billingPostalCode: optionalText(10),
+    billingCity: optionalText(100),
+    billingCountry: countryField,
+    hasShippingAddress: z.boolean().default(false),
+    shippingLine1: optionalText(),
+    shippingLine2: optionalText(),
+    shippingPostalCode: optionalText(10),
+    shippingCity: optionalText(100),
+    shippingCountry: optionalText(2).transform((v) => (v ? v.toUpperCase() : v)),
+    paymentTermsDays: z
+      .union([z.literal(""), z.coerce.number().int().min(0).max(60, "60 jours au maximum (art. L. 441-10 C. com.).")])
+      .transform((v) => (v === "" ? null : v))
+      .nullable()
+      .optional(),
+    notes: optionalText(5000),
+  })
+  .superRefine((v, ctx) => {
+    if (!v.isCustomer && !v.isSupplier) {
+      ctx.addIssue({ code: "custom", path: ["isCustomer"], message: "Cochez client, fournisseur ou les deux." });
+    }
+    if (v.partyType === "individual" && (v.siren || v.siret || v.vatNumber)) {
+      ctx.addIssue({ code: "custom", path: ["partyType"], message: "Un particulier n'a ni SIREN, ni SIRET, ni numéro de TVA." });
+    }
+    if (v.siren && v.siret && !v.siret.startsWith(v.siren)) {
+      ctx.addIssue({ code: "custom", path: ["siret"], message: "Le SIRET doit commencer par le SIREN." });
+    }
+    if (v.siren && v.vatNumber?.startsWith("FR") && !v.vatNumber.endsWith(v.siren)) {
+      ctx.addIssue({ code: "custom", path: ["vatNumber"], message: "Le numéro de TVA ne correspond pas au SIREN." });
+    }
+    if (v.hasShippingAddress && (!v.shippingLine1 || !v.shippingPostalCode || !v.shippingCity)) {
+      ctx.addIssue({ code: "custom", path: ["shippingLine1"], message: "Adresse de livraison incomplète." });
+    }
+  })
+  // La sortie conserve hasShippingAddress : React Hook Form transmet au serveur les valeurs
+  // DÉJÀ transformées, que le serveur revalide. Tout schéma partagé doit donc être idempotent
+  // (vérifié par tests/unit/schemas.test.ts).
+  .transform((v) =>
+    v.hasShippingAddress
+      ? { ...v, shippingCountry: v.shippingCountry ?? "FR" }
+      : { ...v, shippingLine1: null, shippingLine2: null, shippingPostalCode: null, shippingCity: null, shippingCountry: null },
+  );
+
+export type ThirdPartyInput = z.input<typeof thirdPartySchema>;
+export type ThirdPartyData = z.output<typeof thirdPartySchema>;
+
+export const contactSchema = z.object({
+  fullName: z.string().trim().min(1, "Nom requis.").max(120),
+  jobTitle: optionalText(80),
+  email: emailField,
+  phone: optionalText(30),
+  isPrimary: z.boolean().default(false),
+});
+export type ContactInput = z.input<typeof contactSchema>;
+
+// ─── Catalogue ──────────────────────────────────────────────────────────────
+
+export const PRODUCT_KINDS = ["good", "service"] as const;
+export const PRODUCT_KIND_LABELS: Record<(typeof PRODUCT_KINDS)[number], string> = {
+  good: "Bien (marchandise)",
+  service: "Prestation de services",
+};
+export const UNITS = ["unité", "heure", "jour", "forfait", "mois", "kg", "g", "litre", "m", "m²", "m³", "lot"] as const;
+
+const priceField = (label: string) =>
+  z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/[\s  €]/g, "").replace(",", "."))
+    .refine((v) => /^\d{1,11}(\.\d{1,4})?$/.test(v), `${label} : nombre positif, 4 décimales au maximum.`);
+
+export const productSchema = z.object({
+  reference: z
+    .string()
+    .trim()
+    .min(1, "Référence requise.")
+    .max(40)
+    .regex(/^[A-Za-z0-9._/-]+$/, "Lettres, chiffres, « . _ / - » uniquement."),
+  name: z.string().trim().min(1, "Désignation requise.").max(200),
+  description: optionalText(2000),
+  category: optionalText(80),
+  kind: z.enum(PRODUCT_KINDS),
+  unit: z.enum(UNITS),
+  unitPriceExclTax: priceField("Prix de vente HT"),
+  purchasePriceExclTax: z
+    .union([z.literal(""), priceField("Prix d'achat HT")])
+    .transform((v) => (v === "" ? null : v))
+    .nullable()
+    .optional(),
+  vatRateId: z.uuid("Taux de TVA requis."),
+  barcode: optionalText(14).refine((v) => !v || isValidGtin(v), "Code-barres invalide (EAN-8, UPC, EAN-13 ; clé de contrôle)."),
+});
+export type ProductInput = z.input<typeof productSchema>;
+export type ProductData = z.output<typeof productSchema>;
+
+export const MEMBER_ROLES =["owner", "admin", "accountant", "sales", "cashier", "viewer"] as const;
 export const addMemberSchema = z.object({
   email: emailSchema,
   role: z.enum(MEMBER_ROLES),

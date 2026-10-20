@@ -3,6 +3,7 @@ import {
   bigserial,
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -158,6 +159,7 @@ export const vatRates = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
+    uniqueIndex("vat_rates_id_company_uq").on(t.id, t.companyId),
     uniqueIndex("vat_rates_company_rate_reason_uq").on(t.companyId, t.rate, sql`coalesce(${t.exemptionReason}, '')`),
     check("vat_rates_range_ck", sql`${t.rate} >= 0 and ${t.rate} <= 100`),
     check("vat_rates_zero_reason_ck", sql`${t.rate} > 0 or ${t.exemptionReason} is not null`),
@@ -207,6 +209,119 @@ export const auditEvents = pgTable(
   ],
 );
 
+// ─── Tiers (clients et fournisseurs) ────────────────────────────────────────
+
+export const partyTypeEnum = pgEnum("party_type", ["individual", "business", "public_entity"]);
+
+export const thirdParties = pgTable(
+  "third_parties",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    /** Code interne unique dans l'entreprise (ex. CLI-00012) ; servira de compte auxiliaire. */
+    code: text("code").notNull(),
+    isCustomer: boolean("is_customer").notNull().default(true),
+    isSupplier: boolean("is_supplier").notNull().default(false),
+    /** Particulier / professionnel : détermine notamment l'application de l'art. 286 I 3° bis CGI aux règlements. */
+    partyType: partyTypeEnum("party_type").notNull(),
+    name: text("name").notNull(),
+    legalForm: text("legal_form"),
+    siren: text("siren"),
+    siret: text("siret"),
+    vatNumber: text("vat_number"),
+    email: text("email"),
+    phone: text("phone"),
+    billingLine1: text("billing_line1"),
+    billingLine2: text("billing_line2"),
+    billingPostalCode: text("billing_postal_code"),
+    billingCity: text("billing_city"),
+    billingCountry: text("billing_country").notNull().default("FR"),
+    /** Adresse de livraison, si différente (nouvelle mention obligatoire de la facturation électronique). */
+    shippingLine1: text("shipping_line1"),
+    shippingLine2: text("shipping_line2"),
+    shippingPostalCode: text("shipping_postal_code"),
+    shippingCity: text("shipping_city"),
+    shippingCountry: text("shipping_country"),
+    /** null = délai par défaut de l'entreprise. */
+    paymentTermsDays: smallint("payment_terms_days"),
+    notes: text("notes"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("third_parties_company_code_uq").on(t.companyId, t.code),
+    uniqueIndex("third_parties_id_company_uq").on(t.id, t.companyId),
+    index("third_parties_company_name_idx").on(t.companyId, sql`lower(${t.name})`),
+    index("third_parties_company_siren_idx").on(t.companyId, t.siren),
+    check("third_parties_role_ck", sql`${t.isCustomer} or ${t.isSupplier}`),
+    check("third_parties_terms_ck", sql`${t.paymentTermsDays} is null or ${t.paymentTermsDays} between 0 and 60`),
+  ],
+);
+
+export const contacts = pgTable(
+  "contacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    thirdPartyId: uuid("third_party_id").notNull(),
+    fullName: text("full_name").notNull(),
+    jobTitle: text("job_title"),
+    email: text("email"),
+    phone: text("phone"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("contacts_third_party_idx").on(t.companyId, t.thirdPartyId),
+    // Clé composite : un contact ne peut pointer que vers un tiers de la même entreprise.
+    foreignKey({
+      name: "contacts_third_party_company_fk",
+      columns: [t.thirdPartyId, t.companyId],
+      foreignColumns: [thirdParties.id, thirdParties.companyId],
+    }).onDelete("cascade"),
+  ],
+);
+
+// ─── Catalogue ──────────────────────────────────────────────────────────────
+
+/** Bien ou service : « catégorie de l'opération », mention de la facturation électronique. */
+export const productKindEnum = pgEnum("product_kind", ["good", "service"]);
+
+export const products = pgTable(
+  "products",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    reference: text("reference").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    category: text("category"),
+    kind: productKindEnum("kind").notNull(),
+    unit: text("unit").notNull(),
+    unitPriceExclTax: numeric("unit_price_excl_tax", { precision: 15, scale: 4 }).notNull(),
+    purchasePriceExclTax: numeric("purchase_price_excl_tax", { precision: 15, scale: 4 }),
+    vatRateId: uuid("vat_rate_id").notNull(),
+    barcode: text("barcode"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("products_company_reference_uq").on(t.companyId, sql`lower(${t.reference})`),
+    index("products_company_name_idx").on(t.companyId, sql`lower(${t.name})`),
+    index("products_company_barcode_idx").on(t.companyId, t.barcode),
+    check("products_price_ck", sql`${t.unitPriceExclTax} >= 0`),
+    // Clé composite : le taux de TVA doit appartenir à la même entreprise que le produit.
+    foreignKey({
+      name: "products_vat_rate_company_fk",
+      columns: [t.vatRateId, t.companyId],
+      foreignColumns: [vatRates.id, vatRates.companyId],
+    }).onDelete("restrict"),
+    check("products_purchase_ck", sql`${t.purchasePriceExclTax} is null or ${t.purchasePriceExclTax} >= 0`),
+  ],
+);
+
 // ─── Idempotence des opérations financières ─────────────────────────────────
 
 export const idempotencyKeys = pgTable(
@@ -227,3 +342,7 @@ export type Company = typeof companies.$inferSelect;
 export type Membership = typeof memberships.$inferSelect;
 export type AuditEvent = typeof auditEvents.$inferSelect;
 export type Role = (typeof roleEnum.enumValues)[number];
+export type ThirdParty = typeof thirdParties.$inferSelect;
+export type Contact = typeof contacts.$inferSelect;
+export type Product = typeof products.$inferSelect;
+export type VatRate = typeof vatRates.$inferSelect;

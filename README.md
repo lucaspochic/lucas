@@ -2,7 +2,7 @@
 
 Application web pour TPE, PME, indépendants et commerçants français : entreprises, tiers, catalogue, devis, factures, règlements, trésorerie, comptabilité et caisse.
 
-> **État : itération 1 (socle).** Livré : authentification, entreprises multi-sociétés, rôles, paramètres légaux et fiscaux, journal d'audit inaltérable chaîné, numérotation continue, moteur de calcul HT/TVA/TTC. Les modules métier (tiers, factures, règlements…) arrivent dans les prochaines itérations — voir `docs/00-diagnostic.md`.
+> **État : itération 2.** Livré : authentification, entreprises multi-sociétés, rôles, paramètres légaux et fiscaux, journal d'audit inaltérable chaîné, numérotation continue, moteur de calcul HT/TVA/TTC, clients et fournisseurs (contacts, archivage), catalogue de produits et services, import/export CSV contrôlé. Factures et règlements arrivent dans les prochaines itérations — voir `docs/00-diagnostic.md`.
 >
 > **Conformité :** aucune certification NF525 / LNE n'est obtenue ni revendiquée. Voir `docs/05-registre-reglementaire.md` et `docs/06-conformite-caisse-nf525.md`.
 

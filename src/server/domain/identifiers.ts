@@ -65,6 +65,16 @@ export function isValidNafCode(value: string): boolean {
   return /^\d{2}\.?\d{2}[A-Z]$/.test(value.trim().toUpperCase());
 }
 
+/** Code-barres GTIN (EAN-8, UPC-A, EAN-13, GTIN-14) : clé de contrôle modulo 10. */
+export function isValidGtin(value: string): boolean {
+  const v = value.trim();
+  if (!/^(\d{8}|\d{12}|\d{13}|\d{14})$/.test(v)) return false;
+  const digits = [...v].map(Number);
+  const check = digits.pop()!;
+  const total = digits.reverse().reduce((acc, d, i) => acc + d * (i % 2 === 0 ? 3 : 1), 0);
+  return (10 - (total % 10)) % 10 === check;
+}
+
 /** Contrôle de structure d'un IBAN (ISO 13616, mod 97). */
 export function isValidIban(value: string): boolean {
   const v = value.replace(/\s/g, "").toUpperCase();

@@ -15,6 +15,13 @@
       "when": 1792495596074,
       "tag": "0001_immutability",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792507610076,
+      "tag": "0002_thirdparties_catalog",
+      "breakpoints": true
     }
   ]
 }

@@ -34,8 +34,8 @@ interface NavProps {
 function navSections({ canSeeAudit, canManageMembers }: NavProps) {
   const main: NavItem[] = [
     { href: "/tableau-de-bord", label: "Tableau de bord", icon: LayoutDashboard },
-    { href: "#tiers", label: "Clients & fournisseurs", icon: Users, upcoming: true },
-    { href: "#catalogue", label: "Produits & services", icon: Package, upcoming: true },
+    { href: "/tiers", label: "Clients & fournisseurs", icon: Users },
+    { href: "/catalogue", label: "Produits & services", icon: Package },
     { href: "#ventes", label: "Devis & factures", icon: FileText, upcoming: true },
     { href: "#tresorerie", label: "Trésorerie", icon: Wallet, upcoming: true },
     { href: "#comptabilite", label: "Comptabilité", icon: BookOpen, upcoming: true },

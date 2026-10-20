@@ -7,6 +7,8 @@ L'application n'expose pas encore d'API REST publique. Les opérations passent p
 | Méthode | Chemin | Auth | Réponse |
 |---|---|---|---|
 | GET | `/api/health` | non | `200 {"status":"ok"}` ou `503 {"status":"error"}` |
+| GET | `/api/exports/tiers` | session + `exports.run` | CSV UTF-8 (BOM, « ; »), tiers actifs ; 401 / 403 sinon |
+| GET | `/api/exports/catalogue` | session + `exports.run` | CSV des articles actifs, décimaux à la française |
 
 ## Server Actions (`src/app/actions`)
 
@@ -27,3 +29,16 @@ Toutes retournent `ActionResult` : `{ ok: true, data?, message? }` ou `{ ok: fal
 
 ## Services (`src/server/services`)
 Signature commune : `(db, ctx: CompanyContext, input: unknown)`. L'entrée est revalidée par Zod dans le service ; la permission est vérifiée en première instruction.
+
+## Server Actions — itération 2
+
+| Action | Permission | Audit |
+|---|---|---|
+| `createThirdPartyAction`, `updateThirdPartyAction` | `thirdparties.write` | `third_party.created` / `third_party.updated` (différentiel) |
+| `archiveThirdPartyAction` | `thirdparties.write` | `third_party.archived` / `third_party.restored` |
+| `addContactAction`, `removeContactAction` | `thirdparties.write` | `contact.added` / `contact.removed` |
+| `importThirdPartiesAction` | `thirdparties.write` | un `third_party.created` par ligne (source `import`) ; tout ou rien |
+| `createProductAction`, `updateProductAction`, `archiveProductAction` | `catalog.write` | `product.*` |
+| `importProductsAction` | `catalog.write` | un `product.created` par ligne ; tout ou rien |
+
+Règle : les schémas Zod partagés sont **idempotents** (le formulaire envoie la sortie du schéma, que le serveur revalide) — testé dans `tests/unit/schemas.test.ts`.
