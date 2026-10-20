@@ -8,7 +8,8 @@
 | Gestion de versions | Git **non installé** sur la machine, le dossier n'est pas un dépôt. À installer (voir README) avant toute collaboration. |
 | Runtime | Node.js absent du système. **Node.js 24.22.0 LTS portable** installé dans `.tools/node` (archive officielle nodejs.org, SHA-256 vérifié). |
 | Base de données | Ni PostgreSQL ni Docker disponibles. Le développement et les tests utilisent **PGlite** (PostgreSQL 17 compilé en WebAssembly, même moteur SQL, mêmes triggers). La production cible un **PostgreSQL serveur** (Docker fourni). |
-| Conséquence | Les fichiers Docker sont fournis mais **n'ont pas pu être testés sur ce poste**. Les tests de concurrence réelle (verrous de ligne entre connexions) ne peuvent être exécutés qu'avec un PostgreSQL serveur (PGlite = une seule connexion). |
+| Mise à jour du 20/10/2026 | Git, Docker Desktop et un dépôt GitHub sont désormais en place. La suite de tests passe aussi sur **PostgreSQL 17 serveur** (concurrence réelle), et la pile `docker compose` (PostgreSQL + migrations + application) a été construite et vérifiée. |
+| Conséquence (situation initiale) | Les fichiers Docker sont fournis mais **n'ont pas pu être testés sur ce poste**. Les tests de concurrence réelle (verrous de ligne entre connexions) ne peuvent être exécutés qu'avec un PostgreSQL serveur (PGlite = une seule connexion). |
 
 ## 2. Architecture recommandée
 
@@ -95,4 +96,4 @@ Réception obligatoire pour toutes les entreprises depuis le 01/09/2026 ; émiss
 | 9 | Comptabilité, écritures automatiques, FEC | |
 | 10 | Caisse : clôtures, totaux perpétuels, archives signées | |
 | 11 | Factur-X / UBL, connecteur plateforme agréée | dépend d'un partenaire |
-| 12 | MFA TOTP, RLS, E2E Playwright, CI avec PostgreSQL réel, Docker validé | |
+| 12 | MFA TOTP, RLS, E2E Playwright, CI avec PostgreSQL réel | Docker validé ✅ ; tests PostgreSQL réel en local ✅ |

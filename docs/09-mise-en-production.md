@@ -1,10 +1,12 @@
 # Checklist de mise en production
 
 ## Bloquant — à faire avant toute utilisation réelle
-- [ ] Modules métier minimum livrés (facturation, règlements) — **non livrés à ce jour**.
-- [ ] Image Docker construite et testée ; `docker compose up` validé.
+- [ ] Modules métier minimum livrés : facturation ✅ (itération 3) ; **règlements non livrés à ce jour**.
+- [x] Image Docker construite et testée ; `docker compose up` validé le 20/10/2026 (migrations, santé, en-têtes, triggers, inscription désactivée).
+- [ ] Lancer avec un fichier dédié : `docker compose --env-file .env.production up -d --build` (le `.env` de développement est lu automatiquement sinon).
+- [ ] Créer le premier compte : `docker compose run --rm migrate node_modules/.bin/tsx scripts/create-user.ts e-mail "Nom"`.
 - [ ] CI active (typage, lint, tests, migrations sur PostgreSQL réel, build).
-- [ ] Tests de concurrence (numérotation, règlements) exécutés sur PostgreSQL serveur.
+- [x] Tests de concurrence (numérotation) exécutés sur PostgreSQL 17 serveur le 20/10/2026 (`TEST_POSTGRES_URL`). Règlements : à refaire avec le module.
 - [ ] HTTPS obligatoire (reverse proxy), `APP_ENV=production` (cookies Secure, `__Host-`).
 - [ ] `ALLOW_SELF_SIGNUP=false` sauf offre en libre-service assumée.
 - [ ] Secrets dans un gestionnaire de secrets ; aucun `.env` dans l'image.

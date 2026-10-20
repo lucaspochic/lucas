@@ -1,6 +1,8 @@
 # Déploiement de référence : PostgreSQL + migrations + application.
-# NON TESTÉ sur le poste de développement initial (Docker absent).
-# Les secrets sont lus depuis un fichier .env (voir .env.example), jamais versionné.
+# Testé le 20/10/2026 (Docker Desktop 29.9, PostgreSQL 17) : migrations, santé, en-têtes, triggers.
+# Secrets et réglages dans un fichier dédié, jamais versionné :
+#   docker compose --env-file .env.production up -d --build
+# (POSTGRES_PASSWORD, GESTION_APP_URL, GESTION_ALLOW_SELF_SIGNUP).
 services:
   db:
     image: postgres:17
@@ -8,7 +10,7 @@ services:
     environment:
       POSTGRES_DB: gestion
       POSTGRES_USER: gestion
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD (fichier --env-file)}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -33,8 +35,11 @@ services:
     environment:
       DATABASE_URL: postgres://gestion:${POSTGRES_PASSWORD}@db:5432/gestion
       APP_ENV: production
-      APP_URL: ${APP_URL:-https://gestion.exemple.fr}
-      ALLOW_SELF_SIGNUP: ${ALLOW_SELF_SIGNUP:-false}
+      # Variables préfixées GESTION_ : jamais confondues avec le .env de développement,
+      # que docker compose lit automatiquement dans ce dossier (constaté le 20/10/2026 :
+      # l'inscription libre du développement se retrouvait activée en production).
+      APP_URL: ${GESTION_APP_URL:-https://gestion.exemple.fr}
+      ALLOW_SELF_SIGNUP: ${GESTION_ALLOW_SELF_SIGNUP:-false}
     depends_on:
       migrate:
         condition: service_completed_successfully
