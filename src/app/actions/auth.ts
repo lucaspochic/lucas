@@ -2,8 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { getDb } from "@/server/db/client";
-import { login, logout, registerUser, changePassword } from "@/server/services/auth";
-import { clearSessionCookie, readSessionToken, requestMeta, requireSession, setSessionCookie } from "@/server/http/session";
+import { authenticate, login, logout, registerUser, changePassword } from "@/server/services/auth";
+import { completeMfaLogin } from "@/server/services/mfa";
+import { clearMfaCookie, clearSessionCookie, readMfaCookie, readSessionToken, requestMeta, requireSession, setMfaCookie, setSessionCookie } from "@/server/http/session";
 import { toActionError } from "@/server/http/action-result";
 import { AppError } from "@/server/errors";
 
@@ -18,6 +19,10 @@ export interface CredentialFormState {
   fieldErrors?: Record<string, string>;
   /** Valeurs non sensibles à réafficher après une erreur. */
   values?: { email?: string; fullName?: string };
+  /** Mot de passe vérifié : code de double authentification attendu. */
+  mfa?: boolean;
+  /** Défi expiré : recommencer la connexion. */
+  restart?: boolean;
 }
 
 const ttlHours = () => Number(process.env.SESSION_TTL_HOURS ?? 12);
@@ -35,10 +40,32 @@ export async function loginFormAction(_prev: CredentialFormState, fd: FormData):
   const email = field(fd, "email");
   try {
     const db = await getDb();
-    const { token, expiresAt } = await login(db, { email, password: field(fd, "password") }, { ...(await requestMeta()), ttlHours: ttlHours() });
-    await setSessionCookie(token, expiresAt);
+    const result = await authenticate(db, { email, password: field(fd, "password") }, { ...(await requestMeta()), ttlHours: ttlHours() });
+    if (result.kind === "mfa") {
+      await setMfaCookie(result.challengeToken, result.expiresAt);
+      return { mfa: true, values: { email } };
+    }
+    await setSessionCookie(result.token, result.expiresAt);
   } catch (err) {
     return failure(err, { email });
+  }
+  redirect("/tableau-de-bord");
+}
+
+/** Seconde étape de connexion : code de l'application d'authentification ou code de secours. */
+export async function mfaFormAction(_prev: CredentialFormState, fd: FormData): Promise<CredentialFormState> {
+  try {
+    const challenge = await readMfaCookie();
+    const { token, expiresAt } = await completeMfaLogin(await getDb(), challenge ?? "", field(fd, "code"), { ...(await requestMeta()), ttlHours: ttlHours() });
+    await clearMfaCookie();
+    await setSessionCookie(token, expiresAt);
+  } catch (err) {
+    const state = failure(err, {});
+    if (err instanceof AppError && err.code === "UNAUTHENTICATED") {
+      await clearMfaCookie();
+      return { ...state, restart: true };
+    }
+    return { ...state, mfa: true };
   }
   redirect("/tableau-de-bord");
 }

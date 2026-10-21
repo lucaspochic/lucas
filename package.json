@@ -22,7 +22,8 @@
     "user:create": "tsx scripts/create-user.ts",
     "user:reset-password": "tsx scripts/reset-password.ts",
     "check": "npm run typecheck && npm run lint && npm run test",
-    "cash:keygen": "tsx scripts/cash-keygen.ts"
+    "cash:keygen": "tsx scripts/cash-keygen.ts",
+    "user:reset-mfa": "tsx scripts/reset-mfa.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.10",
@@ -40,6 +41,7 @@
     "server-only": "^0.0.1",
     "sonner": "2.0.8",
     "tailwind-merge": "^3.3.1",
+    "uqr": "0.1.2",
     "zod": "4.6.7"
   },
   "devDependencies": {

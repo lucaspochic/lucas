@@ -2,7 +2,7 @@
 
 ## Bloquant — à faire avant toute utilisation réelle
 - [x] Modules métier minimum livrés : facturation, règlements, dépenses, trésorerie, comptabilité, caisse (itérations 3 à 7).
-- [ ] Générer la clé de signature de caisse (`npm run cash:keygen`), la placer dans `GESTION_CASH_SIGNING_KEY` du fichier `--env-file`, **conserver la clé publique** affichée ; la clé privée ne doit jamais être perdue ni divulguée (prévoir sa sauvegarde chiffrée).
+- [ ] Générer les secrets (`npm run cash:keygen`) et les placer dans le fichier `--env-file` : `GESTION_CASH_SIGNING_KEY` (signature de caisse ; **conserver la clé publique** affichée) et `GESTION_APP_ENCRYPTION_KEY` (chiffrement des secrets de double authentification). Ces clés ne doivent jamais être perdues ni divulguées : prévoir leur sauvegarde chiffrée, séparée de celle de la base.
 - [x] Image Docker construite et testée ; `docker compose up` validé le 20/10/2026 (migrations, santé, en-têtes, triggers, inscription désactivée).
 - [ ] Lancer avec un fichier dédié : `docker compose --env-file .env.production up -d --build` (le `.env` de développement est lu automatiquement sinon).
 - [ ] Créer le premier compte : `docker compose run --rm migrate node_modules/.bin/tsx scripts/create-user.ts e-mail "Nom"`.

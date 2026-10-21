@@ -106,6 +106,13 @@
       "when": 1792584839532,
       "tag": "0014_accounting_closing_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1792587310171,
+      "tag": "0015_mfa",
+      "breakpoints": true
     }
   ]
 }

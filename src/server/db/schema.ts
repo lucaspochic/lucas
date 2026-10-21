@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   bigserial,
   boolean,
   check,
@@ -45,10 +46,18 @@ export const users = pgTable(
     passwordHash: text("password_hash").notNull(),
     passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }).notNull().defaultNow(),
     disabledAt: timestamp("disabled_at", { withTimezone: true }),
+    /** Double authentification (TOTP) : secret chiffré (AES-256-GCM, security/encryption.ts). */
+    mfaSecret: text("mfa_secret"),
+    /** Secret en cours d'enrôlement, confirmé par un premier code. */
+    mfaPendingSecret: text("mfa_pending_secret"),
+    mfaEnabledAt: timestamp("mfa_enabled_at", { withTimezone: true }),
+    /** Dernier pas de temps accepté (un code ne sert qu'une fois). */
+    mfaLastStep: bigint("mfa_last_step", { mode: "number" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
+    check("users_mfa_ck", sql`(${t.mfaEnabledAt} is null) = (${t.mfaSecret} is null)`),
     uniqueIndex("users_email_lower_uq").on(sql`lower(${t.email})`),
   ],
 );
@@ -68,6 +77,34 @@ export const sessions = pgTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("sessions_token_hash_uq").on(t.tokenHash), index("sessions_user_idx").on(t.userId)],
+);
+
+/** Codes de secours (usage unique), stockés hachés. */
+export const mfaRecoveryCodes = pgTable(
+  "mfa_recovery_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    codeHash: text("code_hash").notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("mfa_recovery_codes_user_idx").on(t.userId)],
+);
+
+/** Défi de connexion : mot de passe vérifié, code de double authentification attendu. */
+export const mfaChallenges = pgTable(
+  "mfa_challenges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    ipAddress: text("ip_address"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("mfa_challenges_token_uq").on(t.tokenHash)],
 );
 
 export const loginAttempts = pgTable(

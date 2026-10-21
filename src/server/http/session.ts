@@ -35,6 +35,21 @@ export async function clearSessionCookie() {
   store.delete(SESSION_COOKIE);
 }
 
+/** Défi de double authentification en cours (5 minutes) : jamais exposé au JavaScript. */
+export const MFA_COOKIE = isProd ? "__Host-mfa" : "mfa";
+
+export async function setMfaCookie(token: string, expiresAt: Date) {
+  (await cookies()).set(MFA_COOKIE, token, { httpOnly: true, secure: isProd, sameSite: "strict", path: "/", expires: expiresAt });
+}
+
+export async function readMfaCookie(): Promise<string | undefined> {
+  return (await cookies()).get(MFA_COOKIE)?.value;
+}
+
+export async function clearMfaCookie() {
+  (await cookies()).delete(MFA_COOKIE);
+}
+
 export async function readSessionToken(): Promise<string | undefined> {
   return (await cookies()).get(SESSION_COOKIE)?.value;
 }

@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt, sql } from "drizzle-orm";
-import type { Executor, Db } from "../db/client";
-import { loginAttempts, memberships, sessions, users } from "../db/schema";
+import type { Executor, Db, Tx } from "../db/client";
+import { loginAttempts, memberships, mfaChallenges, sessions, users } from "../db/schema";
 import { AppError } from "../errors";
 import { getDummyHash, hashPassword, needsRehash, verifyPassword } from "../security/password";
 import { appendAuditEvent } from "./audit";
@@ -76,7 +76,18 @@ export interface SessionMeta {
   ttlHours?: number;
 }
 
-export async function login(db: Db, raw: unknown, meta: SessionMeta = {}) {
+/** Durée de validité d'un défi de double authentification. */
+export const MFA_CHALLENGE_MINUTES = 5;
+
+export type AuthResult =
+  | { kind: "session"; token: string; expiresAt: Date; userId: string }
+  | { kind: "mfa"; challengeToken: string; expiresAt: Date };
+
+/**
+ * Vérifie l'e-mail et le mot de passe. Sans double authentification : ouvre la session.
+ * Avec : crée un défi de quelques minutes (MFA_CHALLENGE_MINUTES), à compléter par completeMfaLogin (services/mfa.ts).
+ */
+export async function authenticate(db: Db, raw: unknown, meta: SessionMeta = {}): Promise<AuthResult> {
   const parsed = loginSchema.safeParse(raw);
   const genericError = new AppError("UNAUTHENTICATED", "Adresse e-mail ou mot de passe incorrect.");
   if (!parsed.success) throw genericError;
@@ -100,39 +111,59 @@ export async function login(db: Db, raw: unknown, meta: SessionMeta = {}) {
   }
 
   return db.transaction(async (tx) => {
-    await tx.insert(loginAttempts).values({ emailKey, ipAddress: ip, success: true });
     if (needsRehash(user.passwordHash)) {
       await tx.update(users).set({ passwordHash: await hashPassword(password) }).where(eq(users.id, user.id));
     }
-    const [firstMembership] = await tx
-      .select({ companyId: memberships.companyId })
-      .from(memberships)
-      .where(eq(memberships.userId, user.id))
-      .orderBy(memberships.createdAt)
-      .limit(1);
-    const token = randomBytes(32).toString("base64url");
-    const ttlHours = meta.ttlHours ?? 12;
-    const [session] = await tx
-      .insert(sessions)
-      .values({
-        userId: user.id,
-        tokenHash: hashToken(token),
-        activeCompanyId: firstMembership?.companyId ?? null,
-        expiresAt: new Date(Date.now() + ttlHours * 3600_000),
-        ipAddress: ip,
-        userAgent: meta.userAgent?.slice(0, 300) ?? null,
-      })
-      .returning({ id: sessions.id, expiresAt: sessions.expiresAt });
-    await appendAuditEvent(tx, {
-      companyId: null,
-      actorUserId: user.id,
-      action: "user.logged_in",
-      entityType: "session",
-      entityId: session!.id,
-      payload: { ip },
-    });
-    return { token, expiresAt: session!.expiresAt, userId: user.id };
+    if (user.mfaEnabledAt) {
+      const challengeToken = randomBytes(32).toString("base64url");
+      const expiresAt = new Date(Date.now() + MFA_CHALLENGE_MINUTES * 60_000);
+      await tx.insert(mfaChallenges).values({ userId: user.id, tokenHash: hashToken(challengeToken), expiresAt, ipAddress: ip });
+      return { kind: "mfa" as const, challengeToken, expiresAt };
+    }
+    await tx.insert(loginAttempts).values({ emailKey, ipAddress: ip, success: true });
+    const session = await createSession(tx, user.id, meta, {});
+    return { kind: "session" as const, ...session };
   });
+}
+
+/** Connexion sans double authentification (inscription, scripts, tests) ; refusée si elle est activée. */
+export async function login(db: Db, raw: unknown, meta: SessionMeta = {}) {
+  const result = await authenticate(db, raw, meta);
+  if (result.kind === "mfa") throw new AppError("UNAUTHENTICATED", "Code de double authentification requis.");
+  return result;
+}
+
+/** Ouvre une session (jeton opaque, seule son empreinte est stockée). */
+export async function createSession(tx: Tx, userId: string, meta: SessionMeta, auditPayload: Record<string, string | number | null>) {
+  const [firstMembership] = await tx
+    .select({ companyId: memberships.companyId })
+    .from(memberships)
+    .where(eq(memberships.userId, userId))
+    .orderBy(memberships.createdAt)
+    .limit(1);
+  const token = randomBytes(32).toString("base64url");
+  const ttlHours = meta.ttlHours ?? 12;
+  const ip = meta.ip ?? null;
+  const [session] = await tx
+    .insert(sessions)
+    .values({
+      userId,
+      tokenHash: hashToken(token),
+      activeCompanyId: firstMembership?.companyId ?? null,
+      expiresAt: new Date(Date.now() + ttlHours * 3600_000),
+      ipAddress: ip,
+      userAgent: meta.userAgent?.slice(0, 300) ?? null,
+    })
+    .returning({ id: sessions.id, expiresAt: sessions.expiresAt });
+  await appendAuditEvent(tx, {
+    companyId: null,
+    actorUserId: userId,
+    action: "user.logged_in",
+    entityType: "session",
+    entityId: session!.id,
+    payload: { ip, ...auditPayload },
+  });
+  return { token, expiresAt: session!.expiresAt, userId };
 }
 
 export interface SessionInfo {
@@ -230,4 +261,5 @@ export async function adminResetPassword(db: Db, email: string): Promise<string>
 export async function purgeExpiredAuthData(db: Db) {
   await db.delete(sessions).where(sql`${sessions.expiresAt} < now()`);
   await db.delete(loginAttempts).where(sql`${loginAttempts.attemptedAt} < now() - interval '30 days'`);
+  await db.delete(mfaChallenges).where(sql`${mfaChallenges.expiresAt} < now()`);
 }
