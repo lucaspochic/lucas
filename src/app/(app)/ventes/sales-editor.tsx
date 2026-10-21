@@ -56,6 +56,7 @@ export function SalesEditor({
   productOptions,
   rates,
   customerLocked = false,
+  fixedLines = [],
 }: {
   documentId?: string;
   type: "quote" | "invoice" | "credit_note";
@@ -64,6 +65,8 @@ export function SalesEditor({
   productOptions: ProductOption[];
   rates: RateOption[];
   customerLocked?: boolean;
+  /** Lignes calculées par le serveur (déductions d'acomptes), reprises dans l'aperçu des totaux. */
+  fixedLines?: { quantity: string; unitPriceExclTax: string; vatRate: string; vatExemptionReason: string | null }[];
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -85,13 +88,13 @@ export function SalesEditor({
             vatRate: rate?.rate ?? "0",
             vatExemptionReason: rate?.exemptionReason ?? (rate ? undefined : "—"),
           };
-        }),
+        }).concat(fixedLines.map((l) => ({ ...l, vatExemptionReason: l.vatExemptionReason ?? undefined, discountPercent: "0", noGlobalDiscount: true }))),
         globalDiscountPercent: normalize(globalDiscount) || "0",
       });
     } catch {
       return null;
     }
-  }, [lines, globalDiscount, rates]);
+  }, [lines, globalDiscount, rates, fixedLines]);
 
   const activeRates = rates.filter((r) => r.active || (lines ?? []).some((l) => l.vatRateId === r.id));
   const defaultRate = rates.find((r) => r.active)?.id ?? "";

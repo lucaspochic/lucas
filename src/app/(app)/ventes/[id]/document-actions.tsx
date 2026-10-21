@@ -1,17 +1,19 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, FileMinus, FileOutput, Printer, Send, Trash2, X } from "lucide-react";
+import { Check, FileCode, FileDown, FileMinus, FileOutput, Percent, Printer, Send, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   convertQuoteAction,
   createCreditNoteAction,
+  createDepositAction,
   deleteSalesDraftAction,
   issueSalesDocumentAction,
   respondToQuoteAction,
 } from "@/app/actions/sales";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Input } from "@/components/ui/form-controls";
 
 type DocType = "quote" | "invoice" | "credit_note";
 const NAMES: Record<DocType, string> = { quote: "le devis", invoice: "la facture", credit_note: "l'avoir" };
@@ -109,8 +111,23 @@ export function IssuedActions({
         rel="noopener"
         className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-4 text-sm font-medium hover:bg-muted"
       >
-        <Printer className="size-4" aria-hidden /> Imprimer / PDF
+        <Printer className="size-4" aria-hidden /> Imprimer
       </a>
+      <a
+        href={`/api/ventes/${id}/pdf`}
+        className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-4 text-sm font-medium hover:bg-muted"
+      >
+        <FileDown className="size-4" aria-hidden /> PDF
+      </a>
+      {type !== "quote" && (
+        <a
+          href={`/api/ventes/${id}/cii`}
+          title="Données structurées CII (norme EN 16931), pour une plateforme de facturation électronique"
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-4 text-sm font-medium hover:bg-muted"
+        >
+          <FileCode className="size-4" aria-hidden /> XML (CII)
+        </a>
+      )}
       {canWrite && type === "quote" && status === "issued" && (
         <>
           <Button variant="secondary" disabled={pending} onClick={() => run(() => respondToQuoteAction(id, "refused"))}>
@@ -121,6 +138,7 @@ export function IssuedActions({
           </Button>
         </>
       )}
+      {canWrite && type === "quote" && (status === "issued" || status === "accepted") && !hasInvoice && <DepositButton quoteId={id} />}
       {canWrite && type === "quote" && (status === "issued" || status === "accepted") && (
         <Button disabled={pending} onClick={() => run(() => convertQuoteAction(id))}>
           <FileOutput className="size-4" aria-hidden /> {hasInvoice ? "Voir la facture" : "Facturer"}
@@ -143,5 +161,37 @@ export function IssuedActions({
         />
       )}
     </>
+  );
+}
+
+/** Facture d'acompte : pourcentage du devis, ventilé par taux et nature. */
+function DepositButton({ quoteId }: { quoteId: string }) {
+  const [percent, setPercent] = useState("30");
+  return (
+    <ConfirmDialog
+      trigger={
+        <Button variant="secondary">
+          <Percent className="size-4" aria-hidden /> Facture d&apos;acompte
+        </Button>
+      }
+      title="Facture d'acompte"
+      description={
+        <span className="block space-y-3">
+          <span className="block">
+            Un brouillon de facture d&apos;acompte est créé pour ce pourcentage de chaque montant HT du devis. La facture de solde déduira
+            automatiquement les acomptes émis.
+          </span>
+          <span className="flex items-center gap-2">
+            <Input aria-label="Pourcentage d'acompte" inputMode="decimal" className="w-24 text-right" value={percent} onChange={(e) => setPercent(e.target.value)} />
+            <span>%</span>
+          </span>
+        </span>
+      }
+      confirmLabel="Créer le brouillon"
+      onConfirm={async () => {
+        const r = await createDepositAction(quoteId, percent.replace(",", "."));
+        if (r && !r.ok) toast.error(r.error);
+      }}
+    />
   );
 }

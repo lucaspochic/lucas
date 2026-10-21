@@ -16,7 +16,7 @@ import { AppError, notFound } from "../errors";
 import { assertPermission, type CompanyContext } from "../security/permissions";
 import { canonicalJson } from "../security/canonical-json";
 import { computeDocumentTotals } from "../domain/document-totals";
-import { dec } from "../domain/money";
+import { D, dec, roundMoney, type Dec } from "../domain/money";
 import { fiscalYearOf, todayInParis, type DocumentType } from "../domain/numbering";
 import {
   addDays,
@@ -31,7 +31,7 @@ import { allocateDocumentNumber } from "./sequences";
 import { postSalesDocument } from "./accounting";
 import { likePattern, PAGE_SIZE, type ListParams } from "./listing";
 import { isUuid } from "./third-parties";
-import { salesDraftSchema, type SalesDraftData } from "@/lib/schemas";
+import { depositSchema, salesDraftSchema, type SalesDraftData } from "@/lib/schemas";
 
 /**
  * Cycle des documents de vente : brouillon → émission (numéro, figement) → suites
@@ -135,6 +135,7 @@ export async function getSalesDocument(db: Executor, ctx: CompanyContext, id: st
         number: salesDocuments.number,
         totalInclTax: salesDocuments.totalInclTax,
         sourceDocumentId: salesDocuments.sourceDocumentId,
+        isDeposit: salesDocuments.isDeposit,
       })
       .from(salesDocuments)
       .where(
@@ -170,6 +171,8 @@ interface ResolvedLine {
   discountPercent: string;
   vatRate: string;
   vatExemptionReason: string | null;
+  /** Ligne de déduction d'une facture d'acompte (facture de solde). */
+  deductedDocumentId: string | null;
 }
 
 function toResolved(l: SalesDocumentLine): ResolvedLine {
@@ -184,6 +187,7 @@ function toResolved(l: SalesDocumentLine): ResolvedLine {
     discountPercent: l.discountPercent,
     vatRate: l.vatRate,
     vatExemptionReason: l.vatExemptionReason,
+    deductedDocumentId: l.deductedDocumentId,
   };
 }
 
@@ -218,11 +222,15 @@ async function resolveLines(tx: Executor, ctx: CompanyContext, data: SalesDraftD
       discountPercent: dec(l.discountPercent).toFixed(2),
       vatRate: rate.rate,
       vatExemptionReason: dec(rate.rate).isZero() ? rate.exemptionReason : null,
+      deductedDocumentId: null,
     };
   });
 }
 
-function totalsOf(lines: readonly Pick<ResolvedLine, "quantity" | "unitPriceExclTax" | "discountPercent" | "vatRate" | "vatExemptionReason">[], globalDiscountPercent: string) {
+function totalsOf(
+  lines: readonly Pick<ResolvedLine, "quantity" | "unitPriceExclTax" | "discountPercent" | "vatRate" | "vatExemptionReason" | "deductedDocumentId">[],
+  globalDiscountPercent: string,
+) {
   return computeDocumentTotals({
     lines: lines.map((l) => ({
       quantity: l.quantity,
@@ -230,6 +238,7 @@ function totalsOf(lines: readonly Pick<ResolvedLine, "quantity" | "unitPriceExcl
       discountPercent: l.discountPercent,
       vatRate: l.vatRate,
       vatExemptionReason: l.vatExemptionReason ?? undefined,
+      noGlobalDiscount: !!l.deductedDocumentId,
     })),
     globalDiscountPercent,
   });
@@ -291,6 +300,143 @@ async function assertCustomer(tx: Executor, ctx: CompanyContext, thirdPartyId: s
   return party;
 }
 
+// ─── Acomptes ───────────────────────────────────────────────────────────────
+
+const KIND_LABEL = { good: "biens", service: "prestations" } as const;
+const groupKey = (l: { vatRate: string; vatExemptionReason: string | null; kind: string }) => `${dec(l.vatRate).toFixed(2)}|${l.vatExemptionReason ?? ""}|${l.kind}`;
+
+/** Bases HT nettes (après remises) d'un document, par taux, motif d'exonération et nature. */
+function basesByGroup(doc: Pick<SalesDocument, "globalDiscountPercent">, lines: SalesDocumentLine[]) {
+  const totals = totalsOf(lines.map(toResolved), doc.globalDiscountPercent);
+  const groups = new Map<string, { vatRate: string; vatExemptionReason: string | null; kind: "good" | "service"; base: Dec }>();
+  lines.forEach((l, i) => {
+    const key = groupKey(l);
+    const g = groups.get(key) ?? { vatRate: l.vatRate, vatExemptionReason: l.vatExemptionReason, kind: l.kind, base: new D(0) };
+    g.base = g.base.plus(totals.lines[i]!.totalExclTax);
+    groups.set(key, g);
+  });
+  return groups;
+}
+
+/** Factures d'acompte émises sur un devis, avec leurs montants nets des avoirs. */
+async function issuedDeposits(tx: Executor, ctx: CompanyContext, quoteId: string) {
+  const deposits = await tx
+    .select()
+    .from(salesDocuments)
+    .where(and(eq(salesDocuments.companyId, ctx.companyId), eq(salesDocuments.sourceDocumentId, quoteId), eq(salesDocuments.type, "invoice"), eq(salesDocuments.isDeposit, true), ne(salesDocuments.status, "draft")))
+    .orderBy(asc(salesDocuments.number));
+  if (!deposits.length) return [];
+  const credits = await tx
+    .select()
+    .from(salesDocuments)
+    .where(and(eq(salesDocuments.companyId, ctx.companyId), inArray(salesDocuments.sourceDocumentId, deposits.map((d) => d.id)), eq(salesDocuments.type, "credit_note"), ne(salesDocuments.status, "draft")));
+  const allIds = [...deposits, ...credits].map((d) => d.id);
+  const lines = await tx.select().from(salesDocumentLines).where(inArray(salesDocumentLines.documentId, allIds));
+  return deposits.map((d) => {
+    const groups = basesByGroup(d, lines.filter((l) => l.documentId === d.id));
+    for (const c of credits.filter((c) => c.sourceDocumentId === d.id)) {
+      for (const [key, g] of basesByGroup(c, lines.filter((l) => l.documentId === c.id))) {
+        const cur = groups.get(key);
+        if (cur) cur.base = cur.base.minus(g.base);
+      }
+    }
+    const netInclTax = [...groups.values()].reduce((a, g) => a.plus(g.base).plus(roundMoney(g.base.times(g.vatRate).dividedBy(100))), new D(0));
+    return { doc: d, groups: [...groups.values()].filter((g) => !g.base.isZero()), netInclTax };
+  });
+}
+
+/**
+ * Facture de solde (facture issue d'un devis) : les lignes de déduction des acomptes émis
+ * sont toujours recalculées — une ligne négative par taux et nature, par facture d'acompte.
+ */
+async function withDeductions(tx: Executor, ctx: CompanyContext, doc: SalesDocument, lines: ResolvedLine[]): Promise<ResolvedLine[]> {
+  if (doc.type !== "invoice" || doc.isDeposit || !doc.sourceDocumentId) return lines;
+  const own = lines.filter((l) => !l.deductedDocumentId);
+  const deposits = await issuedDeposits(tx, ctx, doc.sourceDocumentId);
+  const deductions = deposits.flatMap(({ doc: d, groups }) =>
+    groups.map((g) => ({
+      productId: null,
+      reference: null,
+      description: `Acompte facturé ${d.number} du ${d.issueDate!.split("-").reverse().join("/")} (${KIND_LABEL[g.kind]})`,
+      kind: g.kind,
+      quantity: "-1.000",
+      unit: "forfait",
+      unitPriceExclTax: g.base.toFixed(4),
+      discountPercent: "0.00",
+      vatRate: g.vatRate,
+      vatExemptionReason: g.vatExemptionReason,
+      deductedDocumentId: d.id,
+    })),
+  );
+  return [...own, ...deductions];
+}
+
+/**
+ * Facture d'acompte sur un devis émis ou accepté : un pourcentage de chaque base HT du devis
+ * (par taux et nature), arrondi au centime. Émise dans la numérotation des factures.
+ */
+export async function createDepositDraft(db: Db, ctx: CompanyContext, quoteId: string, raw: unknown) {
+  assertPermission(ctx, "sales.write");
+  const { percent } = depositSchema.parse(raw);
+  return db.transaction(async (tx) => {
+    const quote = await lockDocument(tx, ctx, quoteId);
+    if (quote.type !== "quote" || !["issued", "accepted"].includes(quote.status)) {
+      throw new AppError("VALIDATION", "Une facture d'acompte s'établit sur un devis émis ou accepté.");
+    }
+    const quoteLines = await tx.select().from(salesDocumentLines).where(eq(salesDocumentLines.documentId, quote.id)).orderBy(asc(salesDocumentLines.position));
+    const lines: ResolvedLine[] = [...basesByGroup(quote, quoteLines).values()]
+      .filter((g) => !g.base.isZero())
+      .map((g) => ({
+        productId: null,
+        reference: null,
+        description: `Acompte de ${dec(percent).toString().replace(".", ",")} % sur le devis ${quote.number} (${KIND_LABEL[g.kind]})`,
+        kind: g.kind,
+        quantity: "1.000",
+        unit: "forfait",
+        unitPriceExclTax: roundMoney(g.base.times(percent).dividedBy(100)).toFixed(4),
+        discountPercent: "0.00",
+        vatRate: g.vatRate,
+        vatExemptionReason: g.vatExemptionReason,
+        deductedDocumentId: null,
+      }));
+    const [draft] = await tx
+      .insert(salesDocuments)
+      .values({ companyId: ctx.companyId, type: "invoice", isDeposit: true, thirdPartyId: quote.thirdPartyId, sourceDocumentId: quote.id, createdBy: ctx.userId })
+      .returning();
+    const totals = await writeDraftContent(tx, ctx, draft!.id, lines, "0");
+    await appendAuditEvent(tx, {
+      companyId: ctx.companyId,
+      actorUserId: ctx.userId,
+      action: "sales_document.deposit_drafted",
+      entityType: "sales_document",
+      entityId: draft!.id,
+      payload: { sourceNumber: quote.number, percent, totalInclTax: totals.totalInclTax },
+    });
+    return draft!;
+  });
+}
+
+/** Contrôles d'émission propres aux acomptes et aux factures de solde. */
+async function checkDepositRules(tx: Tx, ctx: CompanyContext, doc: SalesDocument, totalInclTax: string) {
+  if (doc.type !== "invoice" || !doc.sourceDocumentId) return;
+  const [quote] = await tx.select().from(salesDocuments).where(and(eq(salesDocuments.companyId, ctx.companyId), eq(salesDocuments.id, doc.sourceDocumentId))).for("update").limit(1);
+  if (!quote || quote.type !== "quote") return;
+  if (doc.isDeposit) {
+    const [final] = await tx
+      .select({ number: salesDocuments.number })
+      .from(salesDocuments)
+      .where(and(eq(salesDocuments.companyId, ctx.companyId), eq(salesDocuments.sourceDocumentId, quote.id), eq(salesDocuments.type, "invoice"), eq(salesDocuments.isDeposit, false), ne(salesDocuments.status, "draft")))
+      .limit(1);
+    if (final) throw new AppError("VALIDATION", `Le devis ${quote.number} est déjà soldé par la facture ${final.number} : plus d'acompte possible.`);
+    const already = (await issuedDeposits(tx, ctx, quote.id)).reduce((a, d) => a.plus(d.netInclTax), new D(0));
+    if (already.plus(totalInclTax).greaterThan(quote.totalInclTax)) {
+      throw new AppError("VALIDATION", `Les acomptes (${already.plus(totalInclTax).toFixed(2)} €) dépasseraient le montant du devis ${quote.number} (${quote.totalInclTax} €).`);
+    }
+  } else if (dec(totalInclTax).isNegative()) {
+    throw new AppError("VALIDATION", "Le solde de la facture est négatif : les acomptes facturés dépassent son montant.");
+  }
+}
+
 export async function createDraft(db: Db, ctx: CompanyContext, type: EditableType, raw: unknown) {
   assertPermission(ctx, "sales.write");
   if (type !== "quote" && type !== "invoice") throw new AppError("VALIDATION", "Type de document invalide.");
@@ -332,7 +478,7 @@ export async function updateDraft(db: Db, ctx: CompanyContext, id: string, raw: 
       throw new AppError("VALIDATION", "Le client d'un avoir est celui de la facture d'origine.");
     }
     await assertCustomer(tx, ctx, data.thirdPartyId);
-    const lines = await resolveLines(tx, ctx, data);
+    const lines = await withDeductions(tx, ctx, doc, await resolveLines(tx, ctx, data));
     await tx
       .update(salesDocuments)
       .set({ thirdPartyId: data.thirdPartyId, deliveryDate: data.deliveryDate ?? null, notes: data.notes ?? null })
@@ -384,9 +530,13 @@ function hashContent(doc: SalesDocument, lines: SalesDocumentLine[], vat: (typeo
     customer: doc.customerSnapshot,
     globalDiscountPercent: doc.globalDiscountPercent,
     totals: { excl: doc.totalExclTax, vat: doc.totalVat, incl: doc.totalInclTax },
+    // Champs ajoutés à l'itération 11, présents seulement s'ils sont renseignés : les empreintes
+    // des documents émis auparavant restent inchangées.
+    deposit: doc.isDeposit ? true : undefined,
     lines: lines.map((l) => [
       l.position, l.reference, l.description, l.kind, l.quantity, l.unit, l.unitPriceExclTax, l.discountPercent, l.vatRate,
       l.vatExemptionReason, l.totalExclTax,
+      ...(l.deductedDocumentId ? [l.deductedDocumentId] : []),
     ]),
     vat: vat
       .map((v) => [v.vatRate, v.vatExemptionReason, v.baseExclTax, v.vatAmount])
@@ -431,8 +581,9 @@ export async function issueDocument(db: Db, ctx: CompanyContext, id: string, opt
     }
 
     // Recalcul complet à partir des lignes enregistrées.
-    const resolved = lines.map(toResolved);
+    const resolved = await withDeductions(tx, ctx, doc, lines.map(toResolved));
     const totals = await writeDraftContent(tx, ctx, id, resolved, doc.globalDiscountPercent);
+    await checkDepositRules(tx, ctx, doc, totals.totalInclTax);
 
     let sourceNumber: string | null = null;
     if (doc.type === "credit_note") {
@@ -532,7 +683,8 @@ export async function verifyDocumentIntegrity(db: Executor, ctx: CompanyContext,
   assertPermission(ctx, "sales.read");
   const { doc, lines, vat, source } = await getSalesDocument(db, ctx, id);
   if (doc.status === "draft") return { valid: true, draft: true };
-  const recomputed = sha256(hashContent(doc, lines, vat, source?.number ?? null));
+  // Même règle qu'à l'émission : seul un avoir intègre le numéro de son document d'origine.
+  const recomputed = sha256(hashContent(doc, lines, vat, doc.type === "credit_note" ? (source?.number ?? null) : null));
   return { valid: recomputed === doc.contentHash, draft: false };
 }
 
@@ -574,11 +726,12 @@ async function deriveDraft(tx: Tx, ctx: CompanyContext, source: SalesDocument, t
       type,
       thirdPartyId: source.thirdPartyId,
       sourceDocumentId: source.id,
+      isDeposit: type === "credit_note" && source.isDeposit,
       deliveryDate: source.deliveryDate,
       createdBy: ctx.userId,
     })
     .returning();
-  await writeDraftContent(tx, ctx, draft!.id, lines.map(toResolved), source.globalDiscountPercent);
+  await writeDraftContent(tx, ctx, draft!.id, await withDeductions(tx, ctx, draft!, lines.map(toResolved)), source.globalDiscountPercent);
   await appendAuditEvent(tx, {
     companyId: ctx.companyId,
     actorUserId: ctx.userId,
@@ -600,7 +753,7 @@ export async function convertQuoteToInvoice(db: Db, ctx: CompanyContext, quoteId
     const [existing] = await tx
       .select({ id: salesDocuments.id })
       .from(salesDocuments)
-      .where(and(eq(salesDocuments.companyId, ctx.companyId), eq(salesDocuments.sourceDocumentId, quote.id), eq(salesDocuments.type, "invoice")))
+      .where(and(eq(salesDocuments.companyId, ctx.companyId), eq(salesDocuments.sourceDocumentId, quote.id), eq(salesDocuments.type, "invoice"), eq(salesDocuments.isDeposit, false)))
       .limit(1);
     if (existing) return { id: existing.id, created: false };
     const draft = await deriveDraft(tx, ctx, quote, "invoice");

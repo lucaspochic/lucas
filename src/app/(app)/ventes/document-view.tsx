@@ -1,6 +1,6 @@
 import type { SalesDocument, SalesDocumentLine } from "@/server/db/schema";
 import type { CustomerSnapshot, SellerSnapshot } from "@/server/domain/sales";
-import { DOCUMENT_TYPE_LABELS } from "@/server/domain/sales";
+import { documentLabel } from "@/server/domain/sales";
 import { formatEuro, formatRate, formatUnitPrice } from "@/server/domain/money";
 import { dec } from "@/server/domain/money";
 import { formatDate } from "./sales-ui";
@@ -50,13 +50,14 @@ export function DocumentView({
         </div>
         <div className="text-right">
           <p className="text-xl font-semibold tracking-tight">
-            {DOCUMENT_TYPE_LABELS[doc.type]} n° {doc.number}
+            {documentLabel(doc)} n° {doc.number}
           </p>
           <p>Date d&apos;émission : {formatDate(doc.issueDate!)}</p>
           {doc.deliveryDate && <p>Date de livraison / d&apos;exécution : {formatDate(doc.deliveryDate)}</p>}
           {doc.type === "invoice" && doc.dueDate && <p className="font-medium">Échéance : {formatDate(doc.dueDate)}</p>}
           {isQuote && doc.dueDate && <p>Valable jusqu&apos;au {formatDate(doc.dueDate)}</p>}
           {doc.type === "credit_note" && sourceNumber && <p className="font-medium">Avoir sur la facture n° {sourceNumber}</p>}
+          {doc.type === "invoice" && sourceNumber && <p>{doc.isDeposit ? "Acompte sur le devis" : "Selon le devis"} n° {sourceNumber}</p>}
         </div>
       </header>
 

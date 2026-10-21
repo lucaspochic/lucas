@@ -500,3 +500,22 @@ export const manualEntrySchema = z.object({
   lines: z.array(manualLine).min(2, "Deux lignes au minimum.").max(100),
 });
 export type ManualEntryInput = z.input<typeof manualEntrySchema>;
+
+// ─── Ventes : acomptes et relances ──────────────────────────────────────────
+
+export const depositSchema = z.object({
+  percent: decimalField("Pourcentage", 2, { positive: true, max: 100 }),
+});
+
+export const REMINDER_CHANNELS = ["email", "letter", "other"] as const;
+export const REMINDER_CHANNEL_LABELS: Record<(typeof REMINDER_CHANNELS)[number], string> = {
+  email: "E-mail",
+  letter: "Courrier",
+  other: "Autre (téléphone, remise en main propre…)",
+};
+
+export const reminderSchema = z.object({
+  level: z.coerce.number().int().min(1).max(3),
+  channel: z.enum(REMINDER_CHANNELS),
+  recipient: optionalText(200),
+});

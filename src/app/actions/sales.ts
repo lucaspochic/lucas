@@ -7,6 +7,7 @@ import { requireCompanyContext } from "@/server/http/session";
 import { toActionError, type ActionResult } from "@/server/http/action-result";
 import {
   convertQuoteToInvoice,
+  createDepositDraft,
   createCreditNoteDraft,
   createDraft,
   deleteDraft,
@@ -92,6 +93,17 @@ export async function createCreditNoteAction(invoiceId: string): Promise<ActionR
   try {
     const { ctx } = await requireCompanyContext();
     target = (await createCreditNoteDraft(await getDb(), ctx, String(invoiceId))).id;
+  } catch (err) {
+    return toActionError(err);
+  }
+  redirect(`/ventes/${target}`);
+}
+
+export async function createDepositAction(quoteId: string, percent: string): Promise<ActionResult> {
+  let target: string;
+  try {
+    const { ctx } = await requireCompanyContext();
+    target = (await createDepositDraft(await getDb(), ctx, String(quoteId), { percent: String(percent) })).id;
   } catch (err) {
     return toActionError(err);
   }

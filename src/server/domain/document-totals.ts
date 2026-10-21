@@ -10,8 +10,10 @@ import { D, type Dec, dec, roundMoney, sum, toMoneyString, QUANTITY_SCALE, UNIT_
  *  3. Bases HT regroupées par taux de TVA (et par motif d'exonération pour le taux 0).
  *  4. TVA par taux = arrondi( base HT du taux × taux / 100 ) au centime.
  *  5. Total TTC = Σ bases HT + Σ TVA.
- *  6. Acomptes déjà facturés : déduits du TTC pour obtenir le net à payer (ils ne
- *     modifient pas la base TVA du document, déjà taxée lors de la facture d'acompte).
+ *  6. Facture de solde : chaque acompte facturé est déduit par une ligne négative au même
+ *     taux, exclue de la remise globale ; base et TVA du solde sont ainsi diminuées de ce
+ *     qui a déjà été facturé (pas de double taxation). `depositsInclTax` ne sert qu'à
+ *     afficher un net à payer après des sommes déjà versées, sans effet sur la TVA.
  *
  * Toutes les entrées et sorties sont des chaînes décimales. Fonction pure et déterministe.
  */
@@ -25,6 +27,8 @@ export interface LineInput {
   discountPercent?: string;
   /** Obligatoire si vatRate = 0 : mention justifiant l'exonération (ex. « art. 293 B du CGI »). */
   vatExemptionReason?: string;
+  /** Ligne non soumise à la remise globale (déduction d'un acompte facturé). */
+  noGlobalDiscount?: boolean;
 }
 
 export interface DocumentInput {
@@ -104,7 +108,7 @@ export function computeDocumentTotals(input: DocumentInput): DocumentTotals {
       throw new CalculationError("Une ligne à 0 % de TVA doit indiquer le motif d'exonération.");
     }
     const beforeGlobal = computeLineExclTax(line);
-    const afterGlobal = roundMoney(beforeGlobal.times(HUNDRED.minus(globalDiscount)).dividedBy(HUNDRED));
+    const afterGlobal = line.noGlobalDiscount ? beforeGlobal : roundMoney(beforeGlobal.times(HUNDRED.minus(globalDiscount)).dividedBy(HUNDRED));
 
     const key = `${rate.toString()}|${reason ?? ""}`;
     const group = groups.get(key) ?? { rate, reason, base: new D(0) };

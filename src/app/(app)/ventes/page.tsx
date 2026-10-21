@@ -44,6 +44,9 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
         actions={
           canWrite && (
             <>
+              <Link href="/ventes/relances" className={`${linkBtn} text-foreground-muted hover:bg-muted`}>
+                Relances
+              </Link>
               <Link href="/ventes/nouveau?type=devis" className={`${linkBtn} text-foreground-muted hover:bg-muted`}>
                 <Plus className="size-4" aria-hidden /> Devis
               </Link>

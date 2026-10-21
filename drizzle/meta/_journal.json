@@ -127,6 +127,20 @@
       "when": 1792589378249,
       "tag": "0017_attachments_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792592249429,
+      "tag": "0018_deposits_reminders",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792592266752,
+      "tag": "0019_reminders_guards",
+      "breakpoints": true
     }
   ]
 }

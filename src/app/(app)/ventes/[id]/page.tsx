@@ -13,8 +13,8 @@ import {
   listProductOptions,
   verifyDocumentIntegrity,
 } from "@/server/services/sales";
-import { DOCUMENT_TYPE_LABELS } from "@/server/domain/sales";
-import { formatEuro } from "@/server/domain/money";
+import { documentLabel } from "@/server/domain/sales";
+import { dec, formatEuro } from "@/server/domain/money";
 import { formatDateTime } from "@/lib/utils";
 import { SalesEditor } from "../sales-editor";
 import { DocumentView } from "../document-view";
@@ -38,7 +38,7 @@ export default async function SalesDocumentPage({ params }: { params: Promise<{ 
   const db = await getDb();
   const data = await orNotFound(getSalesDocument(db, ctx, id));
   const { doc, lines, vat, source, derived } = data;
-  const label = DOCUMENT_TYPE_LABELS[doc.type];
+  const label = documentLabel(doc);
   const isDraft = doc.status === "draft";
 
   const back = (
@@ -54,7 +54,7 @@ export default async function SalesDocumentPage({ params }: { params: Promise<{ 
     <>
       {source && (
         <p className="text-[13px] text-foreground-muted">
-          Établi à partir de {DOCUMENT_TYPE_LABELS[source.type].toLowerCase()}{" "}
+          Établi à partir de {documentLabel(source).toLowerCase()}{" "}
           <Link href={`/ventes/${source.id}`} className="font-medium text-accent hover:underline">
             {source.number}
           </Link>
@@ -62,7 +62,7 @@ export default async function SalesDocumentPage({ params }: { params: Promise<{ 
       )}
       {derived.map((d) => (
         <p key={d.id} className="text-[13px] text-foreground-muted">
-          {DOCUMENT_TYPE_LABELS[d.type]}{" "}
+          {documentLabel(d)}{" "}
           <Link href={`/ventes/${d.id}`} className="font-medium text-accent hover:underline">
             {d.number ?? "brouillon"}
           </Link>{" "}
@@ -91,12 +91,22 @@ export default async function SalesDocumentPage({ params }: { params: Promise<{ 
           description={`Créé le ${formatDateTime(doc.createdAt)}. Aucun numéro n'est attribué avant l'émission.`}
           actions={<DraftActions id={doc.id} type={doc.type} canIssue={can(ctx, "sales.issue")} canWrite={can(ctx, "sales.write")} />}
         />
-        <div className="mb-4 space-y-1">{related}</div>
+        <div className="mb-4 space-y-1">
+          {related}
+          {lines.some((l) => l.deductedDocumentId) && (
+            <p className="text-[13px] text-foreground-muted">
+              Acomptes déduits automatiquement :{" "}
+              {formatEuro(lines.filter((l) => l.deductedDocumentId).reduce((acc, l) => acc.plus(l.totalExclTax), dec("0")))} HT (mis à jour à
+              l&apos;émission).
+            </p>
+          )}
+        </div>
         {can(ctx, "sales.write") ? (
           <SalesEditor
             documentId={doc.id}
             type={doc.type}
             customerLocked={doc.type === "credit_note"}
+            fixedLines={lines.filter((l) => l.deductedDocumentId).map((l) => ({ quantity: l.quantity, unitPriceExclTax: l.unitPriceExclTax, vatRate: l.vatRate, vatExemptionReason: l.vatExemptionReason }))}
             customers={customers}
             productOptions={productOptions}
             rates={rates.map((r) => ({ id: r.id, label: r.label, rate: r.rate, exemptionReason: r.exemptionReason, active: r.active }))}
@@ -105,7 +115,8 @@ export default async function SalesDocumentPage({ params }: { params: Promise<{ 
               deliveryDate: doc.deliveryDate ?? "",
               globalDiscountPercent: editable(doc.globalDiscountPercent),
               notes: doc.notes ?? "",
-              lines: lines.map((l) => ({
+              // Lignes de déduction d'acompte : recalculées par le serveur, jamais saisies.
+              lines: lines.filter((l) => !l.deductedDocumentId).map((l) => ({
                 productId: l.productId,
                 reference: l.reference ?? "",
                 description: l.description,
@@ -149,7 +160,7 @@ export default async function SalesDocumentPage({ params }: { params: Promise<{ 
             type={doc.type}
             status={doc.status}
             canWrite={can(ctx, "sales.write")}
-            hasInvoice={derived.some((d) => d.type === "invoice")}
+            hasInvoice={derived.some((d) => d.type === "invoice" && !d.isDeposit)}
           />
         }
       />

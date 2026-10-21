@@ -383,6 +383,8 @@ export const salesDocuments = pgTable(
     thirdPartyId: uuid("third_party_id").notNull(),
     /** Devis d'origine (facture) ou facture d'origine (avoir). */
     sourceDocumentId: uuid("source_document_id"),
+    /** Facture d'acompte (ou avoir sur facture d'acompte) : HT en 419100, TVA des biens en attente de livraison. */
+    isDeposit: boolean("is_deposit").notNull().default(false),
     issueDate: text("issue_date"),
     /** Échéance de paiement (facture) ou fin de validité (devis). */
     dueDate: text("due_date"),
@@ -433,6 +435,7 @@ export const salesDocuments = pgTable(
     check("sales_documents_response_ck", sql`${t.status} not in ('accepted', 'refused') or ${t.type} = 'quote'`),
     check("sales_documents_credit_source_ck", sql`${t.type} <> 'credit_note' or ${t.sourceDocumentId} is not null`),
     check("sales_documents_discount_ck", sql`${t.globalDiscountPercent} between 0 and 100`),
+    check("sales_documents_deposit_ck", sql`not ${t.isDeposit} or (${t.type} in ('invoice', 'credit_note') and ${t.sourceDocumentId} is not null)`),
     check("sales_documents_paid_ck", sql`${t.amountPaid} >= 0`),
   ],
 );
@@ -455,9 +458,16 @@ export const salesDocumentLines = pgTable(
     vatRate: numeric("vat_rate", { precision: 5, scale: 2 }).notNull(),
     vatExemptionReason: text("vat_exemption_reason"),
     totalExclTax: numeric("total_excl_tax", { precision: 15, scale: 2 }).notNull(),
+    /** Facture de solde : facture d'acompte déduite par cette ligne (quantité négative). */
+    deductedDocumentId: uuid("deducted_document_id"),
   },
   (t) => [
     uniqueIndex("sales_document_lines_position_uq").on(t.documentId, t.position),
+    foreignKey({
+      name: "sales_document_lines_deducted_company_fk",
+      columns: [t.deductedDocumentId, t.companyId],
+      foreignColumns: [salesDocuments.id, salesDocuments.companyId],
+    }).onDelete("restrict"),
     foreignKey({
       name: "sales_document_lines_document_company_fk",
       columns: [t.documentId, t.companyId],
@@ -468,7 +478,7 @@ export const salesDocumentLines = pgTable(
       columns: [t.productId, t.companyId],
       foreignColumns: [products.id, products.companyId],
     }).onDelete("restrict"),
-    check("sales_document_lines_qty_ck", sql`${t.quantity} > 0`),
+    check("sales_document_lines_qty_ck", sql`${t.quantity} > 0 or (${t.deductedDocumentId} is not null and ${t.quantity} < 0)`),
     check("sales_document_lines_price_ck", sql`${t.unitPriceExclTax} >= 0`),
     check("sales_document_lines_discount_ck", sql`${t.discountPercent} between 0 and 100`),
     check("sales_document_lines_vat_ck", sql`${t.vatRate} > 0 or ${t.vatExemptionReason} is not null`),
@@ -951,6 +961,34 @@ export const fiscalYearClosures = pgTable(
   (t) => [uniqueIndex("fiscal_year_closures_uq").on(t.companyId, t.fiscalYear)],
 );
 
+// ─── Relances ───────────────────────────────────────────────────────────────
+
+/** Relances de factures impayées : historique en ajout seul (niveau, date, canal, montant dû). */
+export const paymentReminders = pgTable(
+  "payment_reminders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    documentId: uuid("document_id").notNull(),
+    level: smallint("level").notNull(),
+    channel: text("channel").$type<"email" | "letter" | "other">().notNull(),
+    recipient: text("recipient"),
+    amountDue: numeric("amount_due", { precision: 15, scale: 2 }).notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
+    createdBy: uuid("created_by").notNull().references(() => users.id, { onDelete: "restrict" }),
+  },
+  (t) => [
+    index("payment_reminders_document_idx").on(t.companyId, t.documentId),
+    foreignKey({
+      name: "payment_reminders_document_company_fk",
+      columns: [t.documentId, t.companyId],
+      foreignColumns: [salesDocuments.id, salesDocuments.companyId],
+    }).onDelete("restrict"),
+    check("payment_reminders_level_ck", sql`${t.level} between 1 and 3`),
+    check("payment_reminders_channel_ck", sql`${t.channel} in ('email', 'letter', 'other')`),
+  ],
+);
+
 // ─── Pièces jointes ─────────────────────────────────────────────────────────
 
 /**
@@ -1254,6 +1292,7 @@ export type JournalEntry = typeof journalEntries.$inferSelect;
 export type JournalLine = typeof journalLines.$inferSelect;
 export type Lettering = typeof letterings.$inferSelect;
 export type Attachment = typeof attachments.$inferSelect;
+export type PaymentReminder = typeof paymentReminders.$inferSelect;
 export type FiscalYearClosure = typeof fiscalYearClosures.$inferSelect;
 export type CashRegister = typeof cashRegisters.$inferSelect;
 export type CashSession = typeof cashSessions.$inferSelect;

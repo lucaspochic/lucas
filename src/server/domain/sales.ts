@@ -8,6 +8,12 @@ import type { Company, ThirdParty } from "../db/schema";
  */
 
 export const DOCUMENT_TYPE_LABELS = { quote: "Devis", invoice: "Facture", credit_note: "Avoir" } as const;
+
+/** Intitulé d'un document, en distinguant les factures d'acompte. */
+export function documentLabel(d: { type: keyof typeof DOCUMENT_TYPE_LABELS; isDeposit?: boolean | null }) {
+  if (d.isDeposit) return d.type === "credit_note" ? "Avoir sur acompte" : "Facture d'acompte";
+  return DOCUMENT_TYPE_LABELS[d.type];
+}
 export const DOCUMENT_STATUS_LABELS = {
   draft: "Brouillon",
   issued: "Émis",
@@ -30,6 +36,15 @@ export function operationCategoryOf(kinds: readonly ("good" | "service")[]): "go
   return hasGood && hasService ? "mixed" : hasGood ? "goods" : "services";
 }
 
+/** Adresse structurée (factures électroniques) ; absente des documents émis avant l'itération 11. */
+export interface PostalAddress {
+  line1: string | null;
+  line2: string | null;
+  postalCode: string | null;
+  city: string | null;
+  country: string;
+}
+
 export interface SellerSnapshot {
   legalName: string;
   tradeName: string | null;
@@ -49,6 +64,7 @@ export interface SellerSnapshot {
   vatOnDebits: boolean;
   latePenaltyText: string | null;
   legalMentions: string | null;
+  postal?: PostalAddress;
 }
 
 export interface CustomerSnapshot {
@@ -59,6 +75,8 @@ export interface CustomerSnapshot {
   vatNumber: string | null;
   billingAddress: string[];
   shippingAddress: string[] | null;
+  postal?: PostalAddress;
+  shippingPostal?: PostalAddress | null;
 }
 
 const compact = (parts: (string | null | undefined)[]) => parts.filter((p): p is string => !!p && p.trim() !== "");
@@ -83,6 +101,7 @@ export function sellerSnapshot(c: Company): SellerSnapshot {
     vatOnDebits: c.vatOnDebits,
     latePenaltyText: c.latePenaltyText,
     legalMentions: c.legalMentions,
+    postal: { line1: c.addressLine1, line2: c.addressLine2, postalCode: c.postalCode, city: c.city, country: c.country || "FR" },
   };
 }
 
@@ -106,6 +125,10 @@ export function customerSnapshot(t: ThirdParty): CustomerSnapshot {
           compact([t.shippingPostalCode, t.shippingCity]).join(" "),
           t.shippingCountry && t.shippingCountry !== "FR" ? t.shippingCountry : null,
         ])
+      : null,
+    postal: { line1: t.billingLine1, line2: t.billingLine2, postalCode: t.billingPostalCode, city: t.billingCity, country: t.billingCountry || "FR" },
+    shippingPostal: t.shippingLine1
+      ? { line1: t.shippingLine1, line2: t.shippingLine2, postalCode: t.shippingPostalCode, city: t.shippingCity, country: t.shippingCountry || "FR" }
       : null,
   };
 }

@@ -25,6 +25,8 @@
 |---|---|---|
 | Facture émise | 411000 (auxiliaire client) TTC | 706000 prestations / 707000 marchandises (HT par nature) ; 44571x TVA collectée (ou 445740 « TVA en attente » pour les prestations sans option sur les débits) |
 | Avoir émis | inverse de la facture | |
+| Facture d'acompte | 411000 TTC | 419100 HT ; TVA des prestations comme une facture ; TVA des biens en 445800 (en attente de livraison) |
+| Facture de solde | 411000 TTC net des acomptes ; 419100 (HT des acomptes déduits) ; 445800 (TVA des acomptes sur biens) | 706 / 707 HT total ; TVA totale (biens exigible, prestations selon l'option) diminuée de la TVA des prestations déjà facturée en acompte |
 | Encaissement | 512xxx / 530000 | 411000 (auxiliaire) |
 | Remboursement, contre-passation | inverse | |
 | Encaissement sur prestations sans option débits | OD : 445740 | 44571x (quote-part de TVA encaissée ; solde à l'encaissement complet) |

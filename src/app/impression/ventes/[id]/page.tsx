@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getDb } from "@/server/db/client";
 import { orNotFound, requireCompanyContext } from "@/server/http/session";
 import { getSalesDocument } from "@/server/services/sales";
-import { DOCUMENT_TYPE_LABELS } from "@/server/domain/sales";
+import { documentLabel } from "@/server/domain/sales";
 import { DocumentView } from "@/app/(app)/ventes/document-view";
 import { PrintButton } from "./print-button";
 
@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { ctx } = await requireCompanyContext();
   const { doc } = await orNotFound(getSalesDocument(await getDb(), ctx, id));
   // Le titre devient le nom de fichier proposé lors de l'enregistrement en PDF.
-  return { title: { absolute: `${DOCUMENT_TYPE_LABELS[doc.type]} ${doc.number ?? "brouillon"}` } };
+  return { title: { absolute: `${documentLabel(doc)} ${doc.number ?? "brouillon"}` } };
 }
 
 /**

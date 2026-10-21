@@ -40,6 +40,7 @@ export const DEFAULT_CHART: Record<string, string> = {
   "218300": "Matériel de bureau et matériel informatique",
   "401000": "Fournisseurs",
   "411000": "Clients",
+  "419100": "Clients - avances et acomptes reçus sur commandes",
   "445620": "TVA déductible sur immobilisations",
   "445660": "TVA déductible sur autres biens et services",
   "445710": "TVA collectée (autres taux)",
@@ -52,6 +53,7 @@ export const DEFAULT_CHART: Record<string, string> = {
   "445742": "TVA collectée en attente d'encaissement 10 %",
   "445743": "TVA collectée en attente d'encaissement 5,5 %",
   "445744": "TVA collectée en attente d'encaissement 2,1 %",
+  "445800": "TVA sur acomptes de biens, en attente de livraison",
   "512000": "Banque",
   "530000": "Caisse",
   "601000": "Achats stockés - matières premières",
@@ -210,8 +212,18 @@ export async function postEntry(tx: Tx, company: Company, input: PostingInput, n
 
 // ─── Ventes ─────────────────────────────────────────────────────────────────
 
-/** Ventilation HT par nature et TVA par taux (et par nature pour la TVA sur encaissements). */
-export function salesBreakdown(doc: Pick<SalesDocument, "globalDiscountPercent">, lines: SalesDocumentLine[]) {
+/**
+ * Ventilation d'un document de vente en compartiments comptables :
+ *  - HT : chiffre d'affaires par nature (706 prestations, 707 marchandises), ou 419100
+ *    (acomptes reçus) pour une facture d'acompte et pour les lignes de déduction d'acompte ;
+ *  - TVA par taux : prestations (exigible à l'encaissement sauf option sur les débits),
+ *    biens (exigible à la facture = livraison), biens sur acompte (en attente de la
+ *    livraison, compte 445800 : un acompte sur biens ne rend pas la TVA exigible).
+ * L'écart d'arrondi d'un taux revient aux biens, sinon aux prestations (comme auparavant).
+ */
+type VatBucket = "service" | "good" | "goodDeposit";
+
+export function salesBreakdown(doc: Pick<SalesDocument, "globalDiscountPercent" | "isDeposit">, lines: SalesDocumentLine[]) {
   const totals = computeDocumentTotals({
     lines: lines.map((l) => ({
       quantity: l.quantity,
@@ -219,27 +231,47 @@ export function salesBreakdown(doc: Pick<SalesDocument, "globalDiscountPercent">
       discountPercent: l.discountPercent,
       vatRate: l.vatRate,
       vatExemptionReason: l.vatExemptionReason ?? undefined,
+      noGlobalDiscount: !!l.deductedDocumentId,
     })),
     globalDiscountPercent: doc.globalDiscountPercent,
   });
   const htByKind = { good: new D(0), service: new D(0) };
-  const serviceBaseByRate = new Map<string, Dec>();
+  let htDeposit = new D(0);
+  const bases = new Map<string, Record<VatBucket, Dec>>();
   lines.forEach((l, i) => {
     const net = dec(totals.lines[i]!.totalExclTax);
-    htByKind[l.kind] = htByKind[l.kind].plus(net);
-    if (l.kind === "service") {
-      const key = dec(l.vatRate).toFixed(2);
-      serviceBaseByRate.set(key, (serviceBaseByRate.get(key) ?? new D(0)).plus(net));
-    }
+    const depositLike = doc.isDeposit || !!l.deductedDocumentId;
+    if (depositLike) htDeposit = htDeposit.plus(net);
+    else htByKind[l.kind] = htByKind[l.kind].plus(net);
+    const bucket: VatBucket = l.kind === "service" ? "service" : depositLike ? "goodDeposit" : "good";
+    const key = dec(l.vatRate).toFixed(2);
+    const b = bases.get(key) ?? { service: new D(0), good: new D(0), goodDeposit: new D(0) };
+    b[bucket] = b[bucket].plus(net);
+    bases.set(key, b);
   });
-  const vatByRate = new Map<string, { total: Dec; services: Dec }>();
+  const vatByRate = new Map<string, Record<VatBucket, Dec>>();
   for (const v of totals.vatBreakdown) {
     const key = dec(v.vatRate).toFixed(2);
-    const total = (vatByRate.get(key)?.total ?? new D(0)).plus(v.vatAmount);
-    const servicesRaw = roundMoney((serviceBaseByRate.get(key) ?? new D(0)).times(key).dividedBy(100));
-    vatByRate.set(key, { total, services: D.min(servicesRaw, total) });
+    const cur = vatByRate.get(key);
+    vatByRate.set(key, cur ? { ...cur, good: cur.good.plus(v.vatAmount) } : { service: new D(0), good: dec(v.vatAmount), goodDeposit: new D(0) });
   }
-  return { totals, htByKind, vatByRate };
+  for (const [key, totalsForRate] of vatByRate) {
+    const total = totalsForRate.good; // total du taux, avant répartition
+    const b = bases.get(key)!;
+    const service = roundMoney(b.service.times(key).dividedBy(100));
+    const goodDeposit = roundMoney(b.goodDeposit.times(key).dividedBy(100));
+    let good = total.minus(service).minus(goodDeposit);
+    const split = { service, good, goodDeposit };
+    // Écart d'arrondi sans base de biens : rendu aux prestations (ou aux biens sur acompte).
+    if (b.good.isZero() && !good.isZero()) {
+      if (!b.service.isZero()) split.service = split.service.plus(good);
+      else split.goodDeposit = split.goodDeposit.plus(good);
+      good = new D(0);
+      split.good = good;
+    }
+    vatByRate.set(key, split);
+  }
+  return { totals, htByKind, htDeposit, vatByRate };
 }
 
 export async function postSalesDocument(
@@ -252,15 +284,17 @@ export async function postSalesDocument(
   if (doc.type === "quote" || doc.status === "draft") return null;
   await ensureJournal(tx, company.id, "VE");
   const sign = doc.type === "credit_note" ? -1 : 1;
-  const { totals, htByKind, vatByRate } = salesBreakdown(doc, lines);
+  const { totals, htByKind, htDeposit, vatByRate } = salesBreakdown(doc, lines);
   const aux = { number: party.code, label: party.name };
-  const label = doc.type === "credit_note" ? `Avoir ${doc.number} sur ${input.sourceNumber} — ${party.name}` : `Facture ${doc.number} — ${party.name}`;
+  const kind = doc.isDeposit ? "Facture d'acompte" : "Facture";
+  const label = doc.type === "credit_note" ? `Avoir ${doc.number} sur ${input.sourceNumber} — ${party.name}` : `${kind} ${doc.number} — ${party.name}`;
   const pendingOnServices = !company.vatOnDebits;
   const vatLines: PostingLine[] = [];
   for (const [rate, v] of vatByRate) {
-    const pending = pendingOnServices ? v.services : new D(0);
-    vatLines.push({ account: collectedVatAccount(rate), amount: v.total.minus(pending).times(-sign), label });
+    const pending = pendingOnServices ? v.service : new D(0);
+    vatLines.push({ account: collectedVatAccount(rate), amount: v.good.plus(v.service).minus(pending).times(-sign), label });
     vatLines.push({ account: pendingVatAccount(rate), amount: pending.times(-sign), label });
+    vatLines.push({ account: "445800", amount: v.goodDeposit.times(-sign), label });
   }
   return postEntry(
     tx,
@@ -276,6 +310,7 @@ export async function postSalesDocument(
         { account: "411000", amount: dec(totals.totalInclTax).times(sign), label, aux },
         { account: "706000", amount: htByKind.service.times(-sign), label },
         { account: "707000", amount: htByKind.good.times(-sign), label },
+        { account: "419100", amount: htDeposit.times(-sign), label },
         ...vatLines,
       ],
     },
