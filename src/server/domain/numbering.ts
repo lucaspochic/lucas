@@ -9,7 +9,7 @@
  * src/server/services/sequences.ts ; ce module ne fait que le formatage.
  */
 
-export const DOCUMENT_TYPES = ["invoice", "credit_note", "quote", "deposit_invoice", "receipt"] as const;
+export const DOCUMENT_TYPES = ["invoice", "credit_note", "quote", "deposit_invoice", "receipt", "payment"] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
 export const DEFAULT_PREFIXES: Record<DocumentType, string> = {
@@ -18,6 +18,7 @@ export const DEFAULT_PREFIXES: Record<DocumentType, string> = {
   quote: "DE",
   deposit_invoice: "AC",
   receipt: "TK",
+  payment: "RG",
 };
 
 const PREFIX_PATTERN = /^[A-Z0-9]{1,6}$/;

@@ -460,6 +460,99 @@ export const salesDocumentVat = pgTable(
   ],
 );
 
+// ─── Règlements (encaissements, remboursements, contre-passations) ──────────
+
+export const paymentMethodEnum = pgEnum("payment_method", ["cash", "check", "card", "transfer", "direct_debit", "other"]);
+/** receipt : encaissement (> 0) ; refund : remboursement (< 0) ; reversal : contre-passation d'une erreur. */
+export const paymentKindEnum = pgEnum("payment_kind", ["receipt", "refund", "reversal"]);
+
+/**
+ * Règlements : table en ajout seul (triggers, migration 0006), chaînée par empreinte SHA-256
+ * par entreprise. Données exigées par le BOFiP (BOI-TVA-DECLA-30-10-30 §50) : n° de
+ * justificatif, horodatage, montant, mode de paiement, imputation, traces des corrections.
+ */
+export const payments = pgTable(
+  "payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    number: text("number").notNull(),
+    fiscalYear: integer("fiscal_year").notNull(),
+    kind: paymentKindEnum("kind").notNull(),
+    /** Horodatage d'enregistrement (serveur). */
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+    /** Date du paiement déclarée (encaissement, date du chèque…), au plus la date du jour. */
+    paymentDate: text("payment_date").notNull(),
+    thirdPartyId: uuid("third_party_id").notNull(),
+    /** Type du payeur au moment du règlement (particulier ⇒ obligations ISCA). */
+    partyTypeSnapshot: partyTypeEnum("party_type_snapshot").notNull(),
+    method: paymentMethodEnum("method").notNull(),
+    amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+    reference: text("reference"),
+    reversesPaymentId: uuid("reverses_payment_id"),
+    reason: text("reason"),
+    chainSeq: integer("chain_seq").notNull(),
+    prevHash: text("prev_hash").notNull(),
+    hash: text("hash").notNull(),
+    createdBy: uuid("created_by").notNull().references(() => users.id, { onDelete: "restrict" }),
+  },
+  (t) => [
+    uniqueIndex("payments_id_company_uq").on(t.id, t.companyId),
+    uniqueIndex("payments_number_uq").on(t.companyId, t.number),
+    uniqueIndex("payments_chain_uq").on(t.companyId, t.chainSeq),
+    uniqueIndex("payments_reverses_uq").on(t.reversesPaymentId),
+    index("payments_party_idx").on(t.companyId, t.thirdPartyId),
+    index("payments_date_idx").on(t.companyId, t.paymentDate),
+    foreignKey({
+      name: "payments_third_party_company_fk",
+      columns: [t.thirdPartyId, t.companyId],
+      foreignColumns: [thirdParties.id, thirdParties.companyId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "payments_reverses_company_fk",
+      columns: [t.reversesPaymentId, t.companyId],
+      foreignColumns: [t.id, t.companyId],
+    }).onDelete("restrict"),
+    check("payments_amount_nonzero_ck", sql`${t.amount} <> 0`),
+    check(
+      "payments_kind_sign_ck",
+      sql`(${t.kind} = 'receipt' and ${t.amount} > 0) or (${t.kind} = 'refund' and ${t.amount} < 0) or ${t.kind} = 'reversal'`,
+    ),
+    check(
+      "payments_reversal_ck",
+      sql`(${t.kind} = 'reversal') = (${t.reversesPaymentId} is not null) and (${t.kind} <> 'reversal' or ${t.reason} is not null)`,
+    ),
+  ],
+);
+
+export const paymentAllocations = pgTable(
+  "payment_allocations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    paymentId: uuid("payment_id").notNull(),
+    documentId: uuid("document_id").notNull(),
+    /** Montant imputé, de même signe que le règlement. */
+    amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  },
+  (t) => [
+    index("payment_allocations_payment_idx").on(t.paymentId),
+    index("payment_allocations_document_idx").on(t.companyId, t.documentId),
+    uniqueIndex("payment_allocations_pair_uq").on(t.paymentId, t.documentId),
+    foreignKey({
+      name: "payment_allocations_payment_company_fk",
+      columns: [t.paymentId, t.companyId],
+      foreignColumns: [payments.id, payments.companyId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "payment_allocations_document_company_fk",
+      columns: [t.documentId, t.companyId],
+      foreignColumns: [salesDocuments.id, salesDocuments.companyId],
+    }).onDelete("restrict"),
+    check("payment_allocations_nonzero_ck", sql`${t.amount} <> 0`),
+  ],
+);
+
 // ─── Idempotence des opérations financières ─────────────────────────────────
 
 export const idempotencyKeys = pgTable(
@@ -487,3 +580,5 @@ export type VatRate = typeof vatRates.$inferSelect;
 export type SalesDocument = typeof salesDocuments.$inferSelect;
 export type SalesDocumentLine = typeof salesDocumentLines.$inferSelect;
 export type SalesDocumentType = (typeof salesDocumentTypeEnum.enumValues)[number];
+export type Payment = typeof payments.$inferSelect;
+export type PaymentAllocation = typeof paymentAllocations.$inferSelect;

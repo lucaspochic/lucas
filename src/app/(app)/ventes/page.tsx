@@ -12,6 +12,8 @@ import { parseListParams } from "@/server/services/listing";
 import { formatEuro } from "@/server/domain/money";
 import { DOCUMENT_TYPE_LABELS } from "@/server/domain/sales";
 import { StatusBadge, formatDate } from "./sales-ui";
+import { invoiceBalances } from "@/server/services/payments";
+import { PaymentStatusBadge } from "../reglements/payment-ui";
 
 export const metadata: Metadata = { title: "Devis & factures" };
 
@@ -28,7 +30,10 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   const status = STATUSES.find((s) => s === params.statut);
   const base = parseListParams(params, SALES_SORTS, "date");
   const dir = params.ordre ? base.dir : "desc";
-  const { rows, total, pageSize } = await listSalesDocuments(await getDb(), ctx, { ...base, dir, type, status });
+  const db = await getDb();
+  const { rows, total, pageSize } = await listSalesDocuments(db, ctx, { ...base, dir, type, status });
+  const issuedIds = type === "invoice" ? rows.filter((r) => r.status !== "draft").map((r) => r.id) : [];
+  const balances = issuedIds.length ? await invoiceBalances(db, ctx, { ids: issuedIds }) : [];
   const canWrite = can(ctx, "sales.write");
 
   return (
@@ -108,14 +113,17 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
                 {rows.map((d) => (
                   <tr key={d.id} className="border-b border-border last:border-0 hover:bg-surface">
                     <td className="px-5 py-3">
-                      <Link href={`/ventes/${d.id}`} className="font-mono text-xs font-medium text-foreground hover:text-accent">
+                      <Link href={`/ventes/${d.id}`} className="whitespace-nowrap font-mono text-xs font-medium text-foreground hover:text-accent">
                         {d.number ?? "Brouillon"}
                       </Link>
                     </td>
                     <td className="tabular px-5 py-3 text-foreground-muted">{d.issueDate ? formatDate(d.issueDate) : "—"}</td>
                     <td className="px-5 py-3">{d.partyName}</td>
                     <td className="px-5 py-3">
-                      <StatusBadge status={d.status} />
+                      {(() => {
+                        const b = balances.find((x) => x.id === d.id);
+                        return b ? <PaymentStatusBadge status={b.status} /> : <StatusBadge status={d.status} />;
+                      })()}
                     </td>
                     <td className="tabular px-5 py-3 text-foreground-muted">{d.dueDate ? formatDate(d.dueDate) : "—"}</td>
                     <td className="tabular whitespace-nowrap px-5 py-3 text-right font-medium">{formatEuro(d.totalInclTax)}</td>

@@ -16,7 +16,7 @@ Légende du statut : ✅ implémenté et testé · 🟡 partiellement · ⬜ à 
 | **Exigence** | Tout assujetti à la TVA qui enregistre les règlements de clients **particuliers** au moyen d'un logiciel doit utiliser un logiciel satisfaisant à des conditions d'**I**naltérabilité, de **S**écurisation, de **C**onservation et d'**A**rchivage. Un logiciel de facturation ou de gestion qui mémorise extra-comptablement les paiements de non-assujettis est concerné **pour cette fonctionnalité** (BOFiP §30-40). |
 | **Exemptions** | Franchise en base (art. 293 B CGI), remboursement forfaitaire agricole, opérations exclusivement exonérées, assujettis dont **tous** les paiements passent par intermédiation bancaire (tolérance §35), clientèle exclusivement professionnelle. |
 | **Fonctions concernées** | Encaissements (module Paiements) et module Caisse. Le paramétrage du régime (franchise en base) est déjà présent. |
-| **Statut** | 🟡 Socle livré : journal append-only chaîné, triggers anti-modification. Clôtures, totaux perpétuels, archives : ⬜ |
+| **Statut** | 🟡 Livré : journal append-only chaîné, documents de vente figés, **règlements en ajout seul, chaînés, idempotents, avec type de payeur (particulier) mémorisé** (itération 4). Clôtures, totaux perpétuels, archives : ⬜ |
 
 ### Détail des quatre conditions (BOFiP 20251001, à recouper avec la version 20260325)
 

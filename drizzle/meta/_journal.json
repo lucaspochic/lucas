@@ -36,6 +36,20 @@
       "when": 1792512791864,
       "tag": "0004_sales_immutability",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792565255397,
+      "tag": "0005_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792565264347,
+      "tag": "0006_payments_append_only",
+      "breakpoints": true
     }
   ]
 }

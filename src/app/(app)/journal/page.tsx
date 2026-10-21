@@ -36,6 +36,9 @@ const ACTION_LABELS: Record<string, string> = {
   "sales_document.quote_refused": "Devis refusé",
   "sales_document.invoice_from_quote": "Facture créée depuis un devis",
   "sales_document.credit_note_drafted": "Brouillon d'avoir",
+  "payment.recorded": "Encaissement",
+  "payment.refunded": "Remboursement",
+  "payment.reversed": "Contre-passation d'un règlement",
 };
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
@@ -157,6 +160,11 @@ const FIELD_LABELS: Record<string, string> = {
   sourceNumber: "Origine",
   contentHash: "Empreinte",
   type: "Type",
+  amount: "Montant",
+  method: "Mode",
+  hash: "Empreinte",
+  reverses: "Contre-passe",
+  reason: "Motif",
   from: "Avant",
   to: "Après",
 };

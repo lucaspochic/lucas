@@ -90,7 +90,8 @@ Réception obligatoire pour toutes les entreprises depuis le 01/09/2026 ; émiss
 | 3 | Auth (scrypt, sessions opaques, limitation des tentatives), entreprises, rôles, isolation, journal d'audit chaîné, moteur de calcul TVA | ✅ cette itération |
 | 4 | Tiers + catalogue + import/export CSV | ✅ itération 2 |
 | 5 | Devis/factures/avoirs, émission avec numérotation, impression / PDF | ✅ itération 3 (factures d'acompte : à venir) |
-| 6 | Encaissements idempotents, soldes, avoirs/remboursements | prochaine itération |
+| 6 | Encaissements idempotents, soldes, avoirs/remboursements | ✅ itération 4 |
+| 6 bis | Tableau de bord sur données réelles | prochaine itération |
 | 7 | Tableau de bord sur données réelles | |
 | 8 | Trésorerie, dépenses, rapprochement | |
 | 9 | Comptabilité, écritures automatiques, FEC | |

@@ -28,9 +28,9 @@ Conséquence de conception : **toute** fonction qui mémorise un paiement de non
 
 ## 3. Mécanismes à construire (ordre prévu)
 
-1. **Documents émis inaltérables** : factures, avoirs, règlements, tickets — triggers interdisant toute modification des colonnes financières après émission ; corrections uniquement par avoir / opération inverse.
-2. **Données par ticket / règlement** (BOFiP §50) : n° de justificatif, horodatage à la minute, n° de caisse, TTC, détail des lignes (libellé, quantité, PU, HT, taux), mode de paiement, traces des corrections.
-3. **Chaînage par document** : empreinte de chaque ticket/règlement chaînée au précédent de la même caisse, en plus du journal d'audit.
+1. ✅ (factures, avoirs, règlements ; tickets : à venir) **Documents émis inaltérables** : factures, avoirs, règlements, tickets — triggers interdisant toute modification des colonnes financières après émission ; corrections uniquement par avoir / opération inverse.
+2. 🟡 (règlements ✅ ; tickets de caisse : à venir) **Données par ticket / règlement** (BOFiP §50) : n° de justificatif, horodatage à la minute, n° de caisse, TTC, détail des lignes (libellé, quantité, PU, HT, taux), mode de paiement, traces des corrections.
+3. 🟡 (règlements ✅ chaînés par entreprise ; tickets : à venir) **Chaînage par document** : empreinte de chaque ticket/règlement chaînée au précédent de la même caisse, en plus du journal d'audit.
 4. **Clôtures** journalière, mensuelle, annuelle : grand total de période et **total perpétuel** (jamais remis à zéro, poursuivi lors des mises à jour de version) ; empreinte chaînée de chaque clôture.
 5. **Signature** des clôtures et archives par une clé privée (Ed25519) dont la clé publique est publiée ; procédure de gestion et de rotation des clés.
 6. **Archivage** annuel / par exercice : format ouvert (JSON + CSV), notice en français, empreinte + signature, événement d'audit ; outil de vérification d'archive livré.

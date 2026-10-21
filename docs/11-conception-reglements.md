@@ -1,6 +1,6 @@
 # Conception — module de règlements (itération 4)
 
-Statut : **conception**, non implémenté. Les clients du logiciel vendent à des particuliers : l'enregistrement des règlements est donc dans le champ du 3° bis du I de l'art. 286 CGI (BOFiP §30-40). Voir `docs/06-conformite-caisse-nf525.md`.
+Statut : **implémenté** (itération 4, 21/10/2026) — `src/server/services/payments.ts`, migrations 0005-0006, `tests/integration/payments.test.ts` (17 tests, verts sur PGlite et PostgreSQL 17). Les clients du logiciel vendent à des particuliers : l'enregistrement des règlements est donc dans le champ du 3° bis du I de l'art. 286 CGI (BOFiP §30-40). Voir `docs/06-conformite-caisse-nf525.md`.
 
 ## Principes
 1. **Append-only** : un règlement enregistré n'est jamais modifié ni supprimé. Une erreur se corrige par une **contre-passation** (règlement négatif lié au règlement d'origine, motif obligatoire), elle-même inaltérable.

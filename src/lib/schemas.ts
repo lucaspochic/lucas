@@ -298,6 +298,45 @@ export const salesDraftSchema = z.object({
 export type SalesDraftInput = z.input<typeof salesDraftSchema>;
 export type SalesDraftData = z.output<typeof salesDraftSchema>;
 
+// ─── Règlements ─────────────────────────────────────────────────────────────
+
+export const PAYMENT_METHODS = ["transfer", "card", "check", "cash", "direct_debit", "other"] as const;
+export const PAYMENT_METHOD_LABELS: Record<(typeof PAYMENT_METHODS)[number], string> = {
+  transfer: "Virement",
+  card: "Carte bancaire",
+  check: "Chèque",
+  cash: "Espèces",
+  direct_debit: "Prélèvement",
+  other: "Autre",
+};
+
+export const paymentSchema = z
+  .object({
+    /** Clé d'idempotence générée à l'ouverture du formulaire : un double envoi ne crée qu'un règlement. */
+    idempotencyKey: z.uuid(),
+    kind: z.enum(["receipt", "refund"]),
+    thirdPartyId: z.uuid("Client requis."),
+    paymentDate: isoDate,
+    method: z.enum(PAYMENT_METHODS),
+    amount: decimalField("Montant", 2, { positive: true }),
+    reference: optionalText(80),
+    allocations: z
+      .array(z.object({ documentId: z.uuid(), amount: decimalField("Montant imputé", 2) }))
+      .max(100)
+      .transform((list) => list.filter((a) => Number(a.amount) > 0)),
+  })
+  .superRefine((v, ctx) => {
+    const ids = v.allocations.map((a) => a.documentId);
+    if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", path: ["allocations"], message: "Facture imputée deux fois." });
+  });
+export type PaymentInput = z.input<typeof paymentSchema>;
+export type PaymentData = z.output<typeof paymentSchema>;
+
+export const reversalSchema = z.object({
+  idempotencyKey: z.uuid(),
+  reason: z.string().trim().min(5, "Motif requis (5 caractères au minimum).").max(500),
+});
+
 export const MEMBER_ROLES =["owner", "admin", "accountant", "sales", "cashier", "viewer"] as const;
 export const addMemberSchema = z.object({
   email: emailSchema,

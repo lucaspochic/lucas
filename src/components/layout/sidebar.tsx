@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Banknote,
   BookOpen,
   Building2,
   FileText,
@@ -37,6 +38,7 @@ function navSections({ canSeeAudit, canManageMembers }: NavProps) {
     { href: "/tiers", label: "Clients & fournisseurs", icon: Users },
     { href: "/catalogue", label: "Produits & services", icon: Package },
     { href: "/ventes", label: "Devis & factures", icon: FileText },
+    { href: "/reglements", label: "Règlements", icon: Banknote },
     { href: "#tresorerie", label: "Trésorerie", icon: Wallet, upcoming: true },
     { href: "#comptabilite", label: "Comptabilité", icon: BookOpen, upcoming: true },
     { href: "#caisse", label: "Caisse", icon: Store, upcoming: true },

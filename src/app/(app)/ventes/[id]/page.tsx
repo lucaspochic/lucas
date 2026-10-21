@@ -18,6 +18,8 @@ import { formatDateTime } from "@/lib/utils";
 import { SalesEditor } from "../sales-editor";
 import { DocumentView } from "../document-view";
 import { StatusBadge } from "../sales-ui";
+import { invoiceBalances, paymentsForInvoice } from "@/server/services/payments";
+import { PaymentStatusBadge } from "../../reglements/payment-ui";
 import { DraftActions, IssuedActions } from "./document-actions";
 
 export const metadata: Metadata = { title: "Document de vente" };
@@ -124,7 +126,13 @@ export default async function SalesDocumentPage({ params }: { params: Promise<{ 
     );
   }
 
-  const integrity = await verifyDocumentIntegrity(db, ctx, doc.id);
+  const isInvoice = doc.type === "invoice";
+  const [integrity, balances, invoicePayments] = await Promise.all([
+    verifyDocumentIntegrity(db, ctx, doc.id),
+    isInvoice ? invoiceBalances(db, ctx, { ids: [doc.id] }) : Promise.resolve([]),
+    isInvoice ? paymentsForInvoice(db, ctx, doc.id) : Promise.resolve([]),
+  ]);
+  const balance = balances[0] ?? null;
   return (
     <>
       {back}
@@ -157,15 +165,63 @@ export default async function SalesDocumentPage({ params }: { params: Promise<{ 
                 <span className="text-foreground-muted">Total TTC</span>
                 <span className="tabular font-medium">{formatEuro(doc.totalInclTax)}</span>
               </div>
-              {doc.type === "invoice" && (
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground-muted">Réglé</span>
-                  <span className="tabular">{formatEuro(doc.amountPaid)}</span>
-                </div>
+              {balance && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-foreground-muted">Paiement</span>
+                    <PaymentStatusBadge status={balance.status} />
+                  </div>
+                  {balance.credited !== "0.00" && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-foreground-muted">Avoirs</span>
+                      <span className="tabular">-{formatEuro(balance.credited)}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-foreground-muted">Réglé</span>
+                    <span className="tabular">{formatEuro(balance.paid)}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-medium">
+                    <span>{balance.remaining.startsWith("-") ? "Trop-perçu" : "Reste à payer"}</span>
+                    <span className="tabular">{formatEuro(balance.remaining.replace("-", ""))}</span>
+                  </div>
+                </>
               )}
               <div className="space-y-1 pt-1">{related}</div>
             </CardBody>
           </Card>
+          {balance && (
+            <Card>
+              <CardHeader
+                title="Règlements"
+                actions={
+                  can(ctx, "payments.write") && balance.remaining !== "0.00" ? (
+                    <Link
+                      href={`/reglements/nouveau?client=${doc.thirdPartyId}&facture=${doc.id}${balance.remaining.startsWith("-") ? "&type=remboursement" : ""}`}
+                      className="text-[13px] font-medium text-accent hover:underline"
+                    >
+                      {balance.remaining.startsWith("-") ? "Rembourser" : "Enregistrer"}
+                    </Link>
+                  ) : undefined
+                }
+              />
+              {invoicePayments.length === 0 ? (
+                <p className="px-5 py-4 text-[13px] text-foreground-muted">Aucun règlement imputé.</p>
+              ) : (
+                <ul className="divide-y divide-border text-[13px]">
+                  {invoicePayments.map((p) => (
+                    <li key={p.id} className="flex items-center justify-between px-5 py-2.5">
+                      <Link href={`/reglements/${p.id}`} className="font-mono text-xs text-accent hover:underline">
+                        {p.number}
+                      </Link>
+                      <span className="text-foreground-muted">{p.paymentDate.split("-").reverse().join("/")}</span>
+                      <span className={`tabular ${p.amount.startsWith("-") ? "text-danger" : ""}`}>{formatEuro(p.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          )}
           <Card>
             <CardBody className="flex items-start gap-2 text-[13px]">
               {integrity.valid ? (

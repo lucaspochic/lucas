@@ -58,3 +58,12 @@ Règle : les schémas Zod partagés sont **idempotents** (le formulaire envoie l
 Page d'impression : `GET /impression/ventes/{id}` (session requise, documents émis uniquement).
 
 Les formulaires d'authentification utilisent `loginFormAction`, `registerFormAction`, `changePasswordFormAction` (FormData, amélioration progressive).
+
+## Server Actions — itération 4 (règlements)
+
+| Action | Permission | Effet | Audit |
+|---|---|---|---|
+| `recordPaymentAction` | `payments.write` | Encaissement ou remboursement, imputé sur des factures ; **clé d'idempotence obligatoire** (un rejeu renvoie le premier résultat) | `payment.recorded` / `payment.refunded` (avec l'empreinte) |
+| `reversePaymentAction(id, { idempotencyKey, reason })` | `payments.write` | Contre-passation (montant opposé, motif obligatoire, une seule fois) | `payment.reversed` |
+
+Lecture : `listPayments`, `getPayment`, `paymentsForInvoice`, `invoiceBalances` (reste à payer = TTC − avoirs émis − réglé ; statut dérivé).
