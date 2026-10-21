@@ -6,7 +6,7 @@
 - [x] Image Docker construite et testée ; `docker compose up` validé le 20/10/2026 (migrations, santé, en-têtes, triggers, inscription désactivée).
 - [ ] Lancer avec un fichier dédié : `docker compose --env-file .env.production up -d --build` (le `.env` de développement est lu automatiquement sinon).
 - [ ] Créer le premier compte : `docker compose run --rm migrate node_modules/.bin/tsx scripts/create-user.ts e-mail "Nom"`.
-- [ ] Intégration continue : `.github/workflows/ci.yml` (typage, lint, tests PGlite, tests PostgreSQL 17, build, parcours de bout en bout Playwright) — à confirmer au premier passage sur GitHub.
+- [x] Intégration continue : `.github/workflows/ci.yml` (typage, lint, tests PGlite, tests PostgreSQL 17, build, parcours de bout en bout Playwright) — premier passage réussi sur GitHub le 21/10/2026 (3 tâches sur 3).
 - [x] Tests de concurrence exécutés sur PostgreSQL 17 serveur (`TEST_POSTGRES_URL`) : numérotation (20/10/2026), suite complète dont tickets de caisse simultanés (21/10/2026, 185/185).
 - [ ] HTTPS obligatoire (reverse proxy), `APP_ENV=production` (cookies Secure, `__Host-`).
 - [ ] `ALLOW_SELF_SIGNUP=false` sauf offre en libre-service assumée.
