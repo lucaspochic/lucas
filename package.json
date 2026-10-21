@@ -21,7 +21,8 @@
     "accounting:backfill": "tsx scripts/accounting-backfill.ts",
     "user:create": "tsx scripts/create-user.ts",
     "user:reset-password": "tsx scripts/reset-password.ts",
-    "check": "npm run typecheck && npm run lint && npm run test"
+    "check": "npm run typecheck && npm run lint && npm run test",
+    "cash:keygen": "tsx scripts/cash-keygen.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.10",

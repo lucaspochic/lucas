@@ -847,6 +847,240 @@ export const journalLines = pgTable(
   ],
 );
 
+// ─── Caisse (art. 286, I, 3° bis CGI — conditions ISCA) ─────────────────────
+
+export const cashRegisters = pgTable(
+  "cash_registers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    /** N° de caisse figurant sur les tickets (BOFiP §50). */
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    /** Compte de trésorerie « caisse » recevant les espèces. */
+    cashAccountId: uuid("cash_account_id").notNull(),
+    createdAt: createdAt(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("cash_registers_id_company_uq").on(t.id, t.companyId),
+    uniqueIndex("cash_registers_code_uq").on(t.companyId, t.code),
+    foreignKey({
+      name: "cash_registers_account_company_fk",
+      columns: [t.cashAccountId, t.companyId],
+      foreignColumns: [bankAccounts.id, bankAccounts.companyId],
+    }).onDelete("restrict"),
+    check("cash_registers_code_ck", sql`${t.code} ~ '^[A-Z0-9]{1,6}$'`),
+  ],
+);
+
+/** Sessions de caisse : fond de caisse à l'ouverture, comptage et écart à la fermeture. */
+export const cashSessions = pgTable(
+  "cash_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    registerId: uuid("register_id").notNull(),
+    openedAt: timestamp("opened_at", { withTimezone: true }).notNull(),
+    openedBy: uuid("opened_by").notNull().references(() => users.id, { onDelete: "restrict" }),
+    openingFloat: numeric("opening_float", { precision: 15, scale: 2 }).notNull(),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    closedBy: uuid("closed_by").references(() => users.id, { onDelete: "restrict" }),
+    expectedCash: numeric("expected_cash", { precision: 15, scale: 2 }),
+    countedCash: numeric("counted_cash", { precision: 15, scale: 2 }),
+    difference: numeric("difference", { precision: 15, scale: 2 }),
+    note: text("note"),
+  },
+  (t) => [
+    uniqueIndex("cash_sessions_id_company_uq").on(t.id, t.companyId),
+    uniqueIndex("cash_sessions_one_open_uq").on(t.registerId).where(sql`${t.closedAt} is null`),
+    foreignKey({
+      name: "cash_sessions_register_company_fk",
+      columns: [t.registerId, t.companyId],
+      foreignColumns: [cashRegisters.id, cashRegisters.companyId],
+    }).onDelete("restrict"),
+    check("cash_sessions_float_ck", sql`${t.openingFloat} >= 0`),
+  ],
+);
+
+export const cashTicketKindEnum = pgEnum("cash_ticket_kind", ["sale", "refund"]);
+
+/**
+ * Tickets : en ajout seul, numérotés en continu par caisse et chaînés (empreinte du
+ * précédent). Un remboursement ou une annulation est un nouveau ticket négatif lié.
+ */
+export const cashTickets = pgTable(
+  "cash_tickets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    registerId: uuid("register_id").notNull(),
+    sessionId: uuid("session_id").notNull(),
+    /** Rang continu dans la caisse (= maillon de chaîne). */
+    seq: integer("seq").notNull(),
+    number: text("number").notNull(),
+    kind: cashTicketKindEnum("kind").notNull(),
+    refundOfId: uuid("refund_of_id"),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+    /** Date calendaire (Europe/Paris) de rattachement pour les clôtures. */
+    businessDate: text("business_date").notNull(),
+    operatorId: uuid("operator_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    thirdPartyId: uuid("third_party_id"),
+    /** Mode école : enregistré et chaîné, mais exclu des totaux et de la comptabilité. */
+    training: boolean("training").notNull().default(false),
+    totalExclTax: numeric("total_excl_tax", { precision: 15, scale: 2 }).notNull(),
+    totalVat: numeric("total_vat", { precision: 15, scale: 2 }).notNull(),
+    totalInclTax: numeric("total_incl_tax", { precision: 15, scale: 2 }).notNull(),
+    reason: text("reason"),
+    prevHash: text("prev_hash").notNull(),
+    hash: text("hash").notNull(),
+  },
+  (t) => [
+    uniqueIndex("cash_tickets_id_company_uq").on(t.id, t.companyId),
+    uniqueIndex("cash_tickets_seq_uq").on(t.registerId, t.seq),
+    uniqueIndex("cash_tickets_number_uq").on(t.companyId, t.number),
+    index("cash_tickets_date_idx").on(t.registerId, t.businessDate),
+    foreignKey({
+      name: "cash_tickets_register_company_fk",
+      columns: [t.registerId, t.companyId],
+      foreignColumns: [cashRegisters.id, cashRegisters.companyId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "cash_tickets_session_company_fk",
+      columns: [t.sessionId, t.companyId],
+      foreignColumns: [cashSessions.id, cashSessions.companyId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "cash_tickets_refund_company_fk",
+      columns: [t.refundOfId, t.companyId],
+      foreignColumns: [t.id, t.companyId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "cash_tickets_party_company_fk",
+      columns: [t.thirdPartyId, t.companyId],
+      foreignColumns: [thirdParties.id, thirdParties.companyId],
+    }).onDelete("restrict"),
+    check("cash_tickets_sign_ck", sql`(${t.kind} = 'sale' and ${t.totalInclTax} >= 0) or (${t.kind} = 'refund' and ${t.totalInclTax} <= 0)`),
+    check("cash_tickets_refund_ck", sql`(${t.kind} = 'refund') = (${t.refundOfId} is not null) and (${t.kind} = 'sale' or ${t.reason} is not null)`),
+  ],
+);
+
+export const cashTicketLines = pgTable(
+  "cash_ticket_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    ticketId: uuid("ticket_id").notNull(),
+    position: integer("position").notNull(),
+    productId: uuid("product_id"),
+    label: text("label").notNull(),
+    kind: productKindEnum("kind").notNull(),
+    quantity: numeric("quantity", { precision: 15, scale: 3 }).notNull(),
+    unitPriceInclTax: numeric("unit_price_incl_tax", { precision: 15, scale: 4 }).notNull(),
+    vatRate: numeric("vat_rate", { precision: 5, scale: 2 }).notNull(),
+    totalInclTax: numeric("total_incl_tax", { precision: 15, scale: 2 }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("cash_ticket_lines_position_uq").on(t.ticketId, t.position),
+    foreignKey({
+      name: "cash_ticket_lines_ticket_company_fk",
+      columns: [t.ticketId, t.companyId],
+      foreignColumns: [cashTickets.id, cashTickets.companyId],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const cashTicketPayments = pgTable(
+  "cash_ticket_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    ticketId: uuid("ticket_id").notNull(),
+    method: paymentMethodEnum("method").notNull(),
+    amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  },
+  (t) => [
+    index("cash_ticket_payments_ticket_idx").on(t.ticketId),
+    foreignKey({
+      name: "cash_ticket_payments_ticket_company_fk",
+      columns: [t.ticketId, t.companyId],
+      foreignColumns: [cashTickets.id, cashTickets.companyId],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const cashClosureKindEnum = pgEnum("cash_closure_kind", ["day", "month", "year"]);
+
+/**
+ * Clôtures journalières, mensuelles et annuelles (cumulatives et impératives) : grand
+ * total de la période et total perpétuel jamais remis à zéro ; chaînées et signées.
+ */
+export const cashClosures = pgTable(
+  "cash_closures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    registerId: uuid("register_id").notNull(),
+    kind: cashClosureKindEnum("kind").notNull(),
+    periodStart: text("period_start").notNull(),
+    periodEnd: text("period_end").notNull(),
+    seq: integer("seq").notNull(),
+    ticketCount: integer("ticket_count").notNull(),
+    firstTicketSeq: integer("first_ticket_seq"),
+    lastTicketSeq: integer("last_ticket_seq"),
+    lastTicketHash: text("last_ticket_hash"),
+    totalExclTax: numeric("total_excl_tax", { precision: 15, scale: 2 }).notNull(),
+    totalVat: numeric("total_vat", { precision: 15, scale: 2 }).notNull(),
+    /** Grand total de la période (TTC, ventes − remboursements, hors mode école). */
+    grandTotal: numeric("grand_total", { precision: 15, scale: 2 }).notNull(),
+    /** Total perpétuel : cumul depuis la mise en service, jamais remis à zéro. */
+    perpetualTotal: numeric("perpetual_total", { precision: 15, scale: 2 }).notNull(),
+    /** Cumul perpétuel des valeurs absolues (ventes + remboursements). */
+    perpetualAbsoluteTotal: numeric("perpetual_absolute_total", { precision: 15, scale: 2 }).notNull(),
+    vatBreakdown: jsonb("vat_breakdown").notNull(),
+    paymentBreakdown: jsonb("payment_breakdown").notNull(),
+    closedAt: timestamp("closed_at", { withTimezone: true }).notNull(),
+    closedBy: uuid("closed_by").references(() => users.id, { onDelete: "restrict" }),
+    prevHash: text("prev_hash").notNull(),
+    hash: text("hash").notNull(),
+    signature: text("signature").notNull(),
+    keyId: text("key_id").notNull(),
+  },
+  (t) => [
+    uniqueIndex("cash_closures_period_uq").on(t.registerId, t.kind, t.periodStart),
+    uniqueIndex("cash_closures_seq_uq").on(t.registerId, t.seq),
+    foreignKey({
+      name: "cash_closures_register_company_fk",
+      columns: [t.registerId, t.companyId],
+      foreignColumns: [cashRegisters.id, cashRegisters.companyId],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const cashArchives = pgTable(
+  "cash_archives",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    registerId: uuid("register_id").notNull(),
+    periodStart: text("period_start").notNull(),
+    periodEnd: text("period_end").notNull(),
+    fileName: text("file_name").notNull(),
+    sha256: text("sha256").notNull(),
+    signature: text("signature").notNull(),
+    keyId: text("key_id").notNull(),
+    createdAt: createdAt(),
+    createdBy: uuid("created_by").notNull().references(() => users.id, { onDelete: "restrict" }),
+  },
+  (t) => [
+    foreignKey({
+      name: "cash_archives_register_company_fk",
+      columns: [t.registerId, t.companyId],
+      foreignColumns: [cashRegisters.id, cashRegisters.companyId],
+    }).onDelete("restrict"),
+  ],
+);
+
 // ─── Idempotence des opérations financières ─────────────────────────────────
 
 export const idempotencyKeys = pgTable(
@@ -883,3 +1117,8 @@ export type ExpenseLine = typeof expenseLines.$inferSelect;
 export type ExpensePayment = typeof expensePayments.$inferSelect;
 export type JournalEntry = typeof journalEntries.$inferSelect;
 export type JournalLine = typeof journalLines.$inferSelect;
+export type CashRegister = typeof cashRegisters.$inferSelect;
+export type CashSession = typeof cashSessions.$inferSelect;
+export type CashTicket = typeof cashTickets.$inferSelect;
+export type CashTicketLine = typeof cashTicketLines.$inferSelect;
+export type CashClosure = typeof cashClosures.$inferSelect;

@@ -78,6 +78,20 @@
       "when": 1792570618184,
       "tag": "0010_accounting_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792577122793,
+      "tag": "0011_cash_register",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792577131021,
+      "tag": "0012_cash_guards",
+      "breakpoints": true
     }
   ]
 }

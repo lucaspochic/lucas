@@ -43,7 +43,7 @@ function navSections({ canSeeAudit, canManageMembers }: NavProps) {
     { href: "/depenses", label: "Dépenses", icon: Receipt },
     { href: "/tresorerie", label: "Trésorerie", icon: Wallet },
     { href: "/comptabilite", label: "Comptabilité", icon: BookOpen },
-    { href: "#caisse", label: "Caisse", icon: Store, upcoming: true },
+    { href: "/caisse", label: "Caisse", icon: Store },
   ];
   const settings: NavItem[] = [
     { href: "/parametres/entreprise", label: "Entreprise", icon: Building2 },

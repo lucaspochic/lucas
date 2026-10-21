@@ -2,16 +2,18 @@
  * Contrôle d'intégrité complet, utilisable en supervision (cron) :
  *  - chaînes du journal d'audit (système + chaque entreprise) ;
  *  - chaîne des règlements de chaque entreprise ;
- *  - empreinte de chaque document de vente émis.
+ *  - empreinte de chaque document de vente émis ;
+ *  - caisses : chaîne des tickets, chaîne et signatures des clôtures.
  * Code de sortie 2 si une altération est détectée.
  * Utilisation : npm run audit:verify
  */
 import { and, eq, ne } from "drizzle-orm";
 import { openDatabase } from "../src/server/db/client";
-import { companies, salesDocuments } from "../src/server/db/schema";
+import { cashRegisters, companies, salesDocuments } from "../src/server/db/schema";
 import { verifyAuditChain } from "../src/server/services/audit";
 import { verifyPaymentChain } from "../src/server/services/payments";
 import { verifyDocumentIntegrity } from "../src/server/services/sales";
+import { verifyRegister } from "../src/server/services/cash";
 
 async function main() {
   const handle = await openDatabase(process.env.DATABASE_URL ?? "pglite:./.data/pglite", { migrate: false });
@@ -43,6 +45,12 @@ async function main() {
         if (!(await verifyDocumentIntegrity(handle.db, ctx, d.id)).valid) altered.push(d.number!);
       }
       report({ check: "documents", chain: c.name, valid: altered.length === 0, documents: docs.length, altered });
+
+      const registers = await handle.db.select({ id: cashRegisters.id, code: cashRegisters.code }).from(cashRegisters).where(eq(cashRegisters.companyId, c.id));
+      for (const r of registers) {
+        const cash = await verifyRegister(handle.db, c.id, r.id);
+        report({ check: "caisse", chain: `${c.name} / ${r.code}`, valid: cash.valid, tickets: cash.tickets, closures: cash.closures, errors: cash.errors.slice(0, 5) });
+      }
     }
   } finally {
     await handle.close();

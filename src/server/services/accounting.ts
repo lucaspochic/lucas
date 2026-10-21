@@ -68,8 +68,10 @@ export const DEFAULT_CHART: Record<string, string> = {
   "627000": "Services bancaires et assimilés",
   "628000": "Divers",
   "651000": "Redevances pour concessions, brevets, licences, logiciels",
+  "658000": "Charges diverses de gestion courante (écarts de caisse)",
   "706000": "Prestations de services",
   "707000": "Ventes de marchandises",
+  "758000": "Produits divers de gestion courante (écarts de caisse)",
 };
 
 const VAT_SUFFIX: Record<string, string> = { "20.00": "1", "10.00": "2", "5.50": "3", "2.10": "4" };
@@ -102,6 +104,7 @@ const FIXED_JOURNALS = {
   VE: { label: "Ventes", kind: "sales" },
   AC: { label: "Achats", kind: "purchases" },
   OD: { label: "Opérations diverses", kind: "misc" },
+  VC: { label: "Ventes caisse", kind: "sales" },
 } as const;
 
 async function ensureJournal(tx: Tx, companyId: string, code: keyof typeof FIXED_JOURNALS) {
@@ -462,4 +465,109 @@ export async function loadCompany(tx: Executor, companyId: string): Promise<Comp
 
 export async function listAccounts(tx: Executor, companyId: string) {
   return tx.select().from(ledgerAccounts).where(eq(ledgerAccounts.companyId, companyId)).orderBy(asc(ledgerAccounts.number));
+}
+
+// ─── Caisse ─────────────────────────────────────────────────────────────────
+
+export interface CashTicketPosting {
+  ticket: { id: string; number: string; businessDate: string; kind: "sale" | "refund"; training: boolean; totalInclTax: string };
+  lines: { kind: "good" | "service"; vatRate: string; totalInclTax: string }[];
+  payments: { method: string; amount: string }[];
+  cashLedgerAccount: string;
+  cashAccountName: string;
+}
+
+/** Ventilation HT par nature et TVA par taux d'un ticket (prix TTC). */
+export function cashTicketBreakdown(lines: CashTicketPosting["lines"]) {
+  const HUNDRED = new D(100);
+  const byRate = new Map<string, { ttc: Dec; services: Dec }>();
+  for (const l of lines) {
+    const key = dec(l.vatRate).toFixed(2);
+    const cur = byRate.get(key) ?? { ttc: new D(0), services: new D(0) };
+    cur.ttc = cur.ttc.plus(l.totalInclTax);
+    if (l.kind === "service") cur.services = cur.services.plus(l.totalInclTax);
+    byRate.set(key, cur);
+  }
+  let goods = new D(0);
+  let services = new D(0);
+  const vat: { rate: string; amount: Dec }[] = [];
+  for (const [rate, v] of byRate) {
+    const ht = roundMoney(v.ttc.times(HUNDRED).dividedBy(HUNDRED.plus(rate)));
+    // Part « services » plafonnée en valeur absolue (les remboursements sont négatifs).
+    const rawServices = roundMoney(v.services.times(HUNDRED).dividedBy(HUNDRED.plus(rate)));
+    const htServices = rawServices.abs().greaterThan(ht.abs()) ? ht : rawServices;
+    services = services.plus(htServices);
+    goods = goods.plus(ht.minus(htServices));
+    vat.push({ rate, amount: v.ttc.minus(ht) });
+  }
+  return { goods, services, vat };
+}
+
+export async function postCashTicket(tx: Tx, company: Company, input: CashTicketPosting, now?: Date) {
+  const { ticket } = input;
+  if (ticket.training) return null; // mode école : jamais comptabilisé
+  await ensureJournal(tx, company.id, "VC");
+  const [bank] = await tx
+    .select()
+    .from(bankAccounts)
+    .where(and(eq(bankAccounts.companyId, company.id), eq(bankAccounts.kind, "bank"), eq(bankAccounts.isDefault, true)))
+    .limit(1);
+  const { goods, services, vat } = cashTicketBreakdown(input.lines);
+  const label = `${ticket.kind === "refund" ? "Remboursement" : "Ticket"} ${ticket.number}`;
+  const byAccount = new Map<string, { label?: string; amount: Dec }>();
+  for (const p of input.payments) {
+    const account = p.method === "cash" ? input.cashLedgerAccount : (bank?.ledgerAccount ?? "512000");
+    const cur = byAccount.get(account) ?? { label: p.method === "cash" ? input.cashAccountName : bank?.name, amount: new D(0) };
+    cur.amount = cur.amount.plus(p.amount);
+    byAccount.set(account, cur);
+  }
+  return postEntry(
+    tx,
+    company,
+    {
+      journalCode: "VC",
+      entryDate: ticket.businessDate,
+      pieceRef: ticket.number,
+      pieceDate: ticket.businessDate,
+      label,
+      sourceKey: `cash_ticket:${ticket.id}`,
+      lines: [
+        ...[...byAccount.entries()].map(([account, v]) => ({ account, accountLabel: v.label, amount: v.amount, label })),
+        { account: "706000", amount: services.negated(), label },
+        { account: "707000", amount: goods.negated(), label },
+        ...vat.map((v) => ({ account: collectedVatAccount(v.rate), amount: v.amount.negated(), label })),
+      ],
+    },
+    now,
+  );
+}
+
+/** Écart de caisse constaté à la fermeture : manquant en charge (658), excédent en produit (758). */
+export async function postCashDifference(
+  tx: Tx,
+  company: Company,
+  input: { sessionId: string; registerCode: string; date: string; difference: string; cashLedgerAccount: string; cashAccountName: string },
+  now?: Date,
+) {
+  const diff = dec(input.difference);
+  if (diff.isZero()) return null;
+  await ensureJournal(tx, company.id, "OD");
+  const label = `Écart de caisse ${input.registerCode} du ${input.date.split("-").reverse().join("/")}`;
+  return postEntry(
+    tx,
+    company,
+    {
+      journalCode: "OD",
+      entryDate: input.date,
+      pieceRef: `SESSION-${input.registerCode}-${input.date}`,
+      pieceDate: input.date,
+      label,
+      sourceKey: `cash_difference:${input.sessionId}`,
+      lines: [
+        { account: input.cashLedgerAccount, accountLabel: input.cashAccountName, amount: diff, label },
+        { account: diff.isNegative() ? "658000" : "758000", amount: diff.negated(), label },
+      ],
+    },
+    now,
+  );
 }

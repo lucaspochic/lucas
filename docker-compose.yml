@@ -2,7 +2,8 @@
 # Testé le 20/10/2026 (Docker Desktop 29.9, PostgreSQL 17) : migrations, santé, en-têtes, triggers.
 # Secrets et réglages dans un fichier dédié, jamais versionné :
 #   docker compose --env-file .env.production up -d --build
-# (POSTGRES_PASSWORD, GESTION_APP_URL, GESTION_ALLOW_SELF_SIGNUP).
+# (POSTGRES_PASSWORD, GESTION_APP_URL, GESTION_ALLOW_SELF_SIGNUP, GESTION_CASH_SIGNING_KEY
+#  — cette dernière générée par `npm run cash:keygen`).
 services:
   db:
     image: postgres:17
@@ -40,6 +41,8 @@ services:
       # l'inscription libre du développement se retrouvait activée en production).
       APP_URL: ${GESTION_APP_URL:-https://gestion.exemple.fr}
       ALLOW_SELF_SIGNUP: ${GESTION_ALLOW_SELF_SIGNUP:-false}
+      # Clé Ed25519 de signature des clôtures et archives de caisse (obligatoire).
+      CASH_SIGNING_KEY: ${GESTION_CASH_SIGNING_KEY:?définir GESTION_CASH_SIGNING_KEY (npm run cash:keygen)}
     depends_on:
       migrate:
         condition: service_completed_successfully

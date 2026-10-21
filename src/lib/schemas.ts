@@ -425,6 +425,50 @@ export const expensePaymentSchema = z.object({
   reference: optionalText(80),
 });
 
+// ─── Caisse ─────────────────────────────────────────────────────────────────
+
+export const cashRegisterSchema = z.object({
+  code: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{1,6}$/, "1 à 6 lettres ou chiffres (ex. C01)."),
+  name: z.string().trim().min(2, "Nom requis.").max(60),
+  cashAccountId: z.uuid().nullable().optional(),
+});
+
+export const openSessionSchema = z.object({ openingFloat: decimalField("Fond de caisse", 2) });
+
+export const closeSessionSchema = z.object({
+  countedCash: decimalField("Espèces comptées", 2),
+  note: optionalText(500),
+});
+
+const cashLine = z.object({
+  productId: z.uuid().nullable().optional(),
+  label: z.string().trim().min(1, "Libellé requis.").max(200),
+  kind: z.enum(PRODUCT_KINDS),
+  quantity: decimalField("Quantité", 3, { positive: true }),
+  unitPriceInclTax: decimalField("Prix TTC", 4),
+  vatRate: decimalField("Taux de TVA", 2, { max: 100 }),
+  discountPercent: decimalField("Remise", 2, { max: 100 }).default("0"),
+});
+
+const cashPayment = z.object({ method: z.enum(PAYMENT_METHODS), amount: decimalField("Montant", 2, { positive: true }) });
+
+export const cashTicketSchema = z.object({
+  idempotencyKey: z.uuid(),
+  lines: z.array(cashLine).min(1, "Ticket vide.").max(200),
+  payments: z.array(cashPayment).min(1, "Indiquez le paiement.").max(10),
+  thirdPartyId: z.uuid().nullable().optional(),
+  training: z.boolean().default(false),
+});
+export type CashTicketInput = z.input<typeof cashTicketSchema>;
+
+export const cashRefundSchema = z.object({
+  idempotencyKey: z.uuid(),
+  reason: z.string().trim().min(3, "Motif requis.").max(300),
+  /** Lignes remboursées (position + quantité) ; vide = remboursement intégral. */
+  lines: z.array(z.object({ position: z.number().int().positive(), quantity: decimalField("Quantité", 3, { positive: true }) })).max(200).default([]),
+  payments: z.array(cashPayment).min(1, "Indiquez le mode de remboursement.").max(10),
+});
+
 export const reversalSchema = z.object({
   idempotencyKey: z.uuid(),
   reason: z.string().trim().min(5, "Motif requis (5 caractères au minimum).").max(500),

@@ -24,32 +24,42 @@ Conséquence de conception : **toute** fonction qui mémorise un paiement de non
 | Vérification en ligne de commande (supervision) | `npm run audit:verify` (code 2 si altération) | manuel |
 | Numérotation continue, sans trou, sans réutilisation | `src/server/services/sequences.ts` | idem |
 | Données de démonstration marquées et signalées par un bandeau (mode « école ») | `companies.is_demo` | — |
-| Séparation des droits (caissier ≠ clôture) | `permissions.ts` | `security.test.ts` |
+| Séparation des droits (caissier ≠ clôture) | `permissions.ts` | `security.test.ts`, `cash.test.ts` |
+| Module caisse : tickets, lignes, paiements, clôtures, archives en ajout seul (triggers) | `drizzle/0012_cash_guards.sql` | `cash.test.ts` |
+| Tickets numérotés en continu par caisse (`C1-000001`), chaînés SHA-256, verrou par caisse | `src/server/services/cash.ts` | `cash.test.ts` (dont 8 tickets simultanés sur PostgreSQL 17) |
+| Corrections par ticket de remboursement lié, motif obligatoire, jamais au-delà du vendu | `refundTicket` | idem |
+| Mode école : tickets chaînés, marqués, exclus des totaux et de la comptabilité | `cash_tickets.training` | idem |
+| Clôtures journalières (automatiques au premier ticket du jour suivant, ou manuelles), mensuelles et annuelles ; chaînées et signées Ed25519 | `closeDuePeriods`, `src/server/security/signing.ts` | idem |
+| Archive ZIP au format ouvert (CSV + JSON), notice en français, manifeste signé, clé publique jointe ; fonction de vérification | `exportArchive`, `verifyArchive` | idem |
+| Contrôle d'intégrité des caisses (écran + `npm run audit:verify`) | `verifyRegister` | idem |
+| Comptabilisation automatique (journal VC ; écarts de caisse en 658/758) | `postCashTicket`, `postCashDifference` | idem |
 
-## 3. Mécanismes à construire (ordre prévu)
+## 3. Mécanismes : état au 21/10/2026
 
-1. ✅ (factures, avoirs, règlements ; tickets : à venir) **Documents émis inaltérables** : factures, avoirs, règlements, tickets — triggers interdisant toute modification des colonnes financières après émission ; corrections uniquement par avoir / opération inverse.
-2. 🟡 (règlements ✅ ; tickets de caisse : à venir) **Données par ticket / règlement** (BOFiP §50) : n° de justificatif, horodatage à la minute, n° de caisse, TTC, détail des lignes (libellé, quantité, PU, HT, taux), mode de paiement, traces des corrections.
-3. 🟡 (règlements ✅ chaînés par entreprise ; tickets : à venir) **Chaînage par document** : empreinte de chaque ticket/règlement chaînée au précédent de la même caisse, en plus du journal d'audit.
-4. **Clôtures** journalière, mensuelle, annuelle : grand total de période et **total perpétuel** (jamais remis à zéro, poursuivi lors des mises à jour de version) ; empreinte chaînée de chaque clôture.
-5. **Signature** des clôtures et archives par une clé privée (Ed25519) dont la clé publique est publiée ; procédure de gestion et de rotation des clés.
-6. **Archivage** annuel / par exercice : format ouvert (JSON + CSV), notice en français, empreinte + signature, événement d'audit ; outil de vérification d'archive livré.
-7. **Purge** uniquement après archivage, tracée, sans jamais purger les totaux de clôture.
-8. **Restitution** à l'administration : export lisible des données d'origine et des corrections.
-9. **Ancrage externe** périodique de la tête de chaîne (horodatage qualifié RFC 3161 ou dépôt chez un tiers) pour une date certaine — à évaluer.
+1. ✅ **Documents émis inaltérables** : factures, avoirs, règlements, tickets — corrections uniquement par avoir, opération inverse ou remboursement lié.
+2. ✅ **Données par ticket / règlement** (BOFiP §50) : n° de justificatif, horodatage (à la seconde, UTC), n° de caisse, TTC, détail des lignes (libellé, nature, quantité, PU TTC, taux), mode de paiement, ticket d'origine et motif des corrections.
+3. ✅ **Chaînage par document** : règlements chaînés par entreprise ; tickets et clôtures chaînés par caisse ; en plus du journal d'audit.
+4. ✅ **Clôtures** journalière, mensuelle, annuelle (par exercice) : grand total de période, **total perpétuel** jamais remis à zéro, cumul des valeurs absolues ; empreinte chaînée.
+5. 🟡 **Signature** Ed25519 des clôtures et archives ✅ ; clé de production `CASH_SIGNING_KEY` (`npm run cash:keygen`). Reste : procédure écrite de garde et de rotation ; conservation des clés publiques successives (le contrôle en ligne ne vérifie aujourd'hui que les signatures de la clé courante ; les archives embarquent leur clé publique).
+6. 🟡 **Archivage** ✅ à la demande, pour toute période dont les journées sont clôturées (refus sinon), tracé (table `cash_archives` + audit). Reste : archivage annuel automatique et procédure de conservation hors base (6 ans).
+7. ⬜ **Purge** : aucune purge n'existe (données conservées sans limite) ; à concevoir si besoin, uniquement après archivage.
+8. 🟡 **Restitution** : archive ZIP et écrans de tickets (données d'origine et corrections). Reste : documentation utilisateur.
+9. ⬜ **Ancrage externe** périodique de la tête de chaîne (horodatage qualifié RFC 3161 ou dépôt chez un tiers) — à évaluer.
 
 ## 4. Limites connues
 
 - Une chaîne de hachage permet de **détecter** une altération, pas de l'**empêcher** : un administrateur de base peut désactiver les triggers et recalculer toute la chaîne. D'où les points 5 et 9 (signature et ancrage externe), et la séparation entre l'administrateur de la base et l'utilisateur.
 - PGlite (développement) stocke la base dans un dossier local non chiffré : **jamais** pour un usage réel d'encaissement.
-- L'horodatage dépend de l'horloge du serveur (à synchroniser NTP).
+- L'horodatage dépend de l'horloge du serveur (à synchroniser NTP). La date de rattachement d'un ticket est la date civile à Paris.
+- L'archive mentionne l'opérateur par son identifiant interne (UUID) ; la correspondance avec le nom est dans la base.
+- En développement, la clé de signature est générée dans `.data/keys/` (non versionné) : ne jamais l'utiliser en production.
 
 ## 5. Points à valider avant toute revendication de conformité
 
 - [ ] Lire la version en vigueur du BOFiP (BOI-TVA-DECLA-30-10-30-20260325) et le texte de la LF 2026 sur Légifrance.
 - [ ] Choisir la voie : certification (LNE ou Infocert / NF525) ou attestation individuelle de l'éditeur ; obtenir le référentiel correspondant.
 - [ ] Établir la matrice exigence par exigence (21 exigences du référentiel LNE v1.6, ou référentiel NF525) avec preuves et tests.
-- [ ] Implémenter les points 1 à 8 du §3.
+- [ ] Terminer les points 5 à 9 du §3 (rotation des clés, archivage annuel, purge, ancrage).
 - [ ] Définir ce qu'est une « version majeure » (déclenche le renouvellement du certificat) et la politique de versionnement.
 - [ ] Documenter l'hébergement : qui administre la base, journalisation des accès d'administration, sauvegardes.
 - [ ] Faire auditer la conception (certificateur, conseil fiscal).

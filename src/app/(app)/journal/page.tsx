@@ -51,6 +51,12 @@ const ACTION_LABELS: Record<string, string> = {
   "bank_transaction.reconciled": "Rapprochement bancaire",
   "bank_transaction.unreconciled": "Annulation de rapprochement",
   "accounting.fec_exported": "Export du FEC",
+  "cash_register.created": "Création d'une caisse",
+  "cash_session.opened": "Ouverture de caisse",
+  "cash_session.closed": "Fermeture de caisse",
+  "cash_ticket.refunded": "Remboursement en caisse",
+  "cash_closure.created": "Clôture de caisse",
+  "cash_archive.created": "Archivage de caisse",
 };
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {

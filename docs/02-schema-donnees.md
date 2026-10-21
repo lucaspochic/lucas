@@ -23,18 +23,21 @@ Source de vérité : `src/server/db/schema.ts`. Migrations : `drizzle/`.
 | `sales_document_vat` | Ventilation de TVA par taux | recalculée par le serveur ; figée à l'émission |
 | `ledger_accounts`, `journals` | Plan de comptes (PCG) et journaux (VE, AC, OD, BQn, CAn) | plan par défaut créé avec l'entreprise ; un journal par compte de trésorerie |
 | `journal_entries`, `journal_lines` | Écritures comptables | numéro continu par exercice ; origine unique (idempotence) ; **ajout seul** ; **équilibre Σ débit = Σ crédit contrôlé par trigger de contrainte différé** ; débit ou crédit (jamais les deux) |
+| `cash_registers` | Caisses | numéro court unique par entreprise (`^[A-Z0-9]{1,6}$`) ; compte de caisse (530) en clé composite |
+| `cash_sessions` | Ouvertures / fermetures | une seule session ouverte par caisse (index partiel) ; fond, espèces attendues / comptées, écart ; **trigger : session fermée immuable, données d'ouverture non modifiables, suppression interdite** |
+| `cash_tickets`, `cash_ticket_lines`, `cash_ticket_payments` | Tickets de caisse | rang continu par caisse, numéro `CODE-000001` ; vente ou remboursement lié (CHECK de signe, motif obligatoire) ; mode école ; empreinte chaînée par caisse ; **ajout seul** (UPDATE / DELETE / TRUNCATE refusés) |
+| `cash_closures` | Clôtures J / M / A | unique (caisse, type, début) et (caisse, rang) ; totaux, grand total, total perpétuel, cumul des valeurs absolues, ventilations TVA et paiements (jsonb) ; empreinte chaînée, signature Ed25519 et identifiant de clé ; **ajout seul** |
+| `cash_archives` | Archives produites | période, nom de fichier, SHA-256 du ZIP, signature du manifeste ; **ajout seul** |
 
 ## Tables planifiées
 
 | Module | Tables |
 |---|---|
-| Tiers | `attachments` (pièces jointes : nécessite un stockage de fichiers, dépendance à choisir) |
+| Tiers | `attachments` (pièces jointes : stockage de fichiers) |
 | Catalogue | `stock_movements` (si le module de stock est activé) |
-| Ventes | factures d'acompte et déduction des acomptes (à venir) |
-| Règlements | `payments` (append-only, idempotents), `payment_allocations` (lettrage paiement ↔ facture), `refunds` |
-| Trésorerie | `bank_accounts`, `bank_transactions` (import relevés, empreinte d'import anti-doublon), `reconciliations`, `expenses` |
-| Comptabilité | `fiscal_years` (clôture), lettrage |
-| Caisse | `cash_registers`, `cash_sessions`, `cash_tickets` (+ lignes, paiements ; chaînés), `cash_closures` (J/M/A, totaux perpétuels, signature), `archives` |
+| Ventes | factures d'acompte et déduction des acomptes, relances |
+| Comptabilité | `fiscal_years` (clôture), lettrage, à-nouveaux |
+| Caisse | conservation des clés publiques successives (rotation) |
 
 ## Principes
 - Montants : `numeric`, jamais `real` / `double precision`.
