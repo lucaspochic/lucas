@@ -15,7 +15,8 @@ RUN npm run build
 FROM node:24-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 APP_ENV=production PORT=3000
-RUN groupadd --system app && useradd --system --gid app --home /app app
+RUN groupadd --system app && useradd --system --gid app --home /app app \
+  && mkdir -p /data/attachments && chown app:app /data/attachments
 COPY --from=build --chown=app:app /app/.next/standalone ./
 COPY --from=build --chown=app:app /app/.next/static ./.next/static
 COPY --from=build --chown=app:app /app/drizzle ./drizzle

@@ -113,6 +113,20 @@
       "when": 1792587310171,
       "tag": "0015_mfa",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792589369137,
+      "tag": "0016_attachments",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792589378249,
+      "tag": "0017_attachments_guards",
+      "breakpoints": true
     }
   ]
 }

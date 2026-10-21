@@ -14,6 +14,7 @@ import { formatDateTime } from "@/lib/utils";
 import { formatDate } from "../../ventes/sales-ui";
 import { ExpenseEditor } from "../expense-editor";
 import { DraftExpenseActions, ExpensePaymentForm, ReverseExpensePaymentButton } from "./expense-actions";
+import { AttachmentsPanel } from "@/components/attachments/attachments-panel";
 
 export const metadata: Metadata = { title: "Dépense" };
 
@@ -65,6 +66,9 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
             <CardBody className="text-[13px] text-foreground-muted">Brouillon en cours de saisie.</CardBody>
           </Card>
         )}
+        <div className="mt-6 max-w-3xl">
+          <AttachmentsPanel ctx={ctx} entityType="expense" entityId={e.id} path={`/depenses/${e.id}`} />
+        </div>
       </>
     );
   }
@@ -150,6 +154,9 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
             />
           )}
         </div>
+      </div>
+      <div className="mt-6 max-w-3xl">
+        <AttachmentsPanel ctx={ctx} entityType="expense" entityId={e.id} path={`/depenses/${e.id}`} />
       </div>
     </>
   );

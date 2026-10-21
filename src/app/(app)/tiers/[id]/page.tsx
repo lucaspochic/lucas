@@ -11,6 +11,7 @@ import { PARTY_TYPE_LABELS } from "@/lib/schemas";
 import { formatDateTime } from "@/lib/utils";
 import { ThirdPartyForm } from "../third-party-form";
 import { ArchiveThirdPartyButton, ContactsPanel } from "./third-party-client";
+import { AttachmentsPanel } from "@/components/attachments/attachments-panel";
 
 export const metadata: Metadata = { title: "Fiche tiers" };
 
@@ -110,6 +111,7 @@ export default async function ThirdPartyPage({
               />
             </CardBody>
           </Card>
+          <AttachmentsPanel ctx={ctx} entityType="third_party" entityId={party.id} path={`/tiers/${party.id}`} />
         </div>
       </div>
     </>

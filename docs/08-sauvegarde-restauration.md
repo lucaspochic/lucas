@@ -13,6 +13,17 @@ pg_dump --format=custom --no-owner "$DATABASE_URL" \
 - Copie hors site (stockage objet, autre région), rétention : 30 sauvegardes quotidiennes + 12 mensuelles. Les obligations de conservation (6 et 10 ans) sont assurées par les **archives** légales, pas par les sauvegardes.
 - Pour un RPO inférieur à 24 h : archivage continu des WAL (pgBackRest ou service managé).
 
+### Pièces jointes et secrets
+La base ne contient que les métadonnées des pièces jointes : leur contenu est dans le volume `attachments` (`ATTACHMENTS_DIR`). Il doit être sauvegardé **avec** la base, au même rythme :
+```bash
+docker run --rm -v gestion_attachments:/data:ro -v "$PWD":/out alpine \
+  tar -C /data -czf /out/pieces-jointes-$(date +%F).tar.gz .
+# puis chiffrer avec age comme le dump
+```
+Les fichiers sont nommés par leur empreinte SHA-256 et ne sont jamais modifiés : une sauvegarde incrémentale (rsync, restic) convient. À la lecture, l'application recalcule l'empreinte et refuse un fichier altéré.
+
+Les clés `CASH_SIGNING_KEY` et `APP_ENCRYPTION_KEY` sont sauvegardées **séparément** (coffre de secrets) : sans `APP_ENCRYPTION_KEY`, les secrets de double authentification sont illisibles (chaque utilisateur devra être réinitialisé avec `npm run user:reset-mfa`).
+
 ### Restauration
 ```bash
 age -d -i cle-privee.txt gestion-AAAA-MM-JJ.dump.age > gestion.dump

@@ -39,7 +39,7 @@ export function getSigningKey(): SigningKey {
   } else if (process.env.APP_ENV === "production") {
     throw new Error("CASH_SIGNING_KEY est obligatoire en production (clé Ed25519 PKCS#8).");
   } else {
-    const file = path.join(process.cwd(), ".data", "keys", "cash-signing.pem");
+    const file = path.join(/* turbopackIgnore: true */ process.cwd(), ".data", "keys", "cash-signing.pem");
     if (!existsSync(file)) {
       mkdirSync(path.dirname(file), { recursive: true });
       const { privateKey } = generateKeyPairSync("ed25519");

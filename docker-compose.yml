@@ -45,9 +45,14 @@ services:
       CASH_SIGNING_KEY: ${GESTION_CASH_SIGNING_KEY:?définir GESTION_CASH_SIGNING_KEY (npm run cash:keygen)}
       # Clé AES-256 (base64) de chiffrement des secrets de double authentification (obligatoire).
       APP_ENCRYPTION_KEY: ${GESTION_APP_ENCRYPTION_KEY:?définir GESTION_APP_ENCRYPTION_KEY (npm run cash:keygen)}
+      # Pièces jointes : volume persistant, à sauvegarder avec la base (docs/08).
+      ATTACHMENTS_DIR: /data/attachments
+    volumes:
+      - attachments:/data/attachments
     depends_on:
       migrate:
         condition: service_completed_successfully
 
 volumes:
   pgdata:
+  attachments:

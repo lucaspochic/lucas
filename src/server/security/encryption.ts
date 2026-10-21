@@ -25,7 +25,7 @@ function key(): Buffer {
   } else if (process.env.APP_ENV === "production") {
     throw new Error("APP_ENCRYPTION_KEY est obligatoire en production (32 octets en base64).");
   } else {
-    const file = path.join(process.cwd(), ".data", "keys", "app-encryption.key");
+    const file = path.join(/* turbopackIgnore: true */ process.cwd(), ".data", "keys", "app-encryption.key");
     if (!existsSync(file)) {
       mkdirSync(path.dirname(file), { recursive: true });
       writeFileSync(file, randomBytes(32).toString("base64"), { mode: 0o600 });

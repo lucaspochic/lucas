@@ -7,6 +7,7 @@
 | Force brute | 5 échecs / 15 min par e-mail, 30 par IP ; message générique ; temps de réponse homogène (hash factice) | `services/auth.ts` | ✅ |
 | Vol ou réutilisation du mot de passe | Double authentification TOTP (RFC 6238, 6 chiffres, 30 s, tolérance ±1 pas) : défi de 5 min en cookie HttpOnly SameSite=Strict, 5 essais au plus, échecs comptés dans la limitation des connexions ; code non rejouable (dernier pas mémorisé) ; 10 codes de secours à usage unique stockés hachés ; activation confirmée par un code, autres sessions fermées ; désactivation par mot de passe + code ; réinitialisation `npm run user:reset-mfa` | `services/mfa.ts`, `security/totp.ts` | ✅ `mfa.test.ts`, `totp.test.ts` (vecteurs RFC 6238) |
 | Vol de base → secrets TOTP | Chiffrement AES-256-GCM, clé `APP_ENCRYPTION_KEY` hors base (obligatoire en production) | `security/encryption.ts` | ✅ |
+| Fichiers malveillants (pièces jointes) | Type reconnu par signature binaire (PDF, PNG, JPEG, WebP ; SVG et HTML refusés), 10 Mo, nom assaini ; servis avec leur type réel, `nosniff`, images isolées par CSP `sandbox` ; accès selon l'entreprise et le rôle ; empreinte revérifiée à la lecture | `services/attachments.ts`, `api/pieces-jointes` | ✅ `attachments.test.ts` |
 | Énumération de comptes à la connexion | Message d'erreur identique | idem | ✅ |
 | Mot de passe dans l'URL (envoi d'un formulaire avant chargement du JavaScript) | Formulaires à mot de passe en amélioration progressive (Server Action en `action`, POST natif) ; `method="post"` imposé à tous les autres | `app/actions/auth.ts`, formulaires | ✅ `forms-guard.test.ts` (faille constatée et corrigée le 20/10/2026) |
 | Perte d'accès à un compte | Réinitialisation par l'administrateur technique (`npm run user:reset-password`) | `adminResetPassword` | ✅ |
@@ -29,4 +30,5 @@
 - Row Level Security PostgreSQL.
 - Limitation de débit générale (au-delà de la connexion) au niveau du reverse proxy.
 - Chiffrement des sauvegardes (voir `docs/08-sauvegarde-restauration.md`).
+- Analyse antivirus des pièces jointes (ClamAV ou service) : **dépendance externe** à choisir.
 - Revue de sécurité externe / test d'intrusion avant mise en production.

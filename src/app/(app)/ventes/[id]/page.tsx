@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ChevronLeft, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Card, CardBody, CardHeader, PageHeader } from "@/components/ui/card";
 import { getDb } from "@/server/db/client";
+import { AttachmentsPanel } from "@/components/attachments/attachments-panel";
 import { orNotFound, requireCompanyContext } from "@/server/http/session";
 import { can } from "@/server/security/permissions";
 import { listVatRates } from "@/server/services/companies";
@@ -122,6 +123,9 @@ export default async function SalesDocumentPage({ params }: { params: Promise<{ 
             <CardBody className="text-[13px] text-foreground-muted">Brouillon en cours de rédaction — total {formatEuro(doc.totalInclTax)}.</CardBody>
           </Card>
         )}
+        <div className="mt-6 max-w-3xl">
+          <AttachmentsPanel ctx={ctx} entityType="sales_document" entityId={doc.id} path={`/ventes/${doc.id}`} />
+        </div>
       </>
     );
   }
@@ -241,6 +245,9 @@ export default async function SalesDocumentPage({ params }: { params: Promise<{ 
             </CardBody>
           </Card>
         </div>
+      </div>
+      <div className="mt-6 max-w-3xl">
+        <AttachmentsPanel ctx={ctx} entityType="sales_document" entityId={doc.id} path={`/ventes/${doc.id}`} />
       </div>
     </>
   );

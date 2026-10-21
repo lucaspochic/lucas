@@ -25,6 +25,8 @@ Source de vérité : `src/server/db/schema.ts`. Migrations : `drizzle/`.
 | `journal_entries`, `journal_lines` | Écritures comptables | numéro continu par exercice ; origine unique (idempotence) ; **ajout seul** ; **équilibre Σ débit = Σ crédit contrôlé par trigger de contrainte différé** ; débit ou crédit (jamais les deux) |
 | `letterings`, `lettering_lines` | Lettrage des comptes 411 / 401 | code unique par compte ; une ligne dans un seul lettrage (clé primaire) ; même compte et même tiers (trigger) ; **solde nul contrôlé en fin de transaction** ; seul le délettrage (une fois) est permis, liens retirés ensuite seulement |
 | `fiscal_year_closures` | Exercices clôturés | unique (entreprise, exercice) ; résultat, totaux, écriture d'à-nouveaux ; **ajout seul** ; **trigger sur `journal_entries` refusant toute écriture d'un exercice clos** |
+| `attachments` | Pièces jointes (dépenses, documents de vente, tiers) | type réel détecté (PDF, PNG, JPEG, WebP), taille, SHA-256 ; contenu sur disque (`ATTACHMENTS_DIR`) adressé par empreinte ; **ni suppression ni modification** (trigger) : seul le retrait (marquage) est permis, refusé par le service pour le justificatif d'une opération validée |
+| `mfa_recovery_codes`, `mfa_challenges` | Double authentification | codes de secours hachés à usage unique ; défis de connexion de 5 min (empreinte du jeton) ; secret TOTP chiffré dans `users.mfa_secret` |
 | `cash_registers` | Caisses | numéro court unique par entreprise (`^[A-Z0-9]{1,6}$`) ; compte de caisse (530) en clé composite |
 | `cash_sessions` | Ouvertures / fermetures | une seule session ouverte par caisse (index partiel) ; fond, espèces attendues / comptées, écart ; **trigger : session fermée immuable, données d'ouverture non modifiables, suppression interdite** |
 | `cash_tickets`, `cash_ticket_lines`, `cash_ticket_payments` | Tickets de caisse | rang continu par caisse, numéro `CODE-000001` ; vente ou remboursement lié (CHECK de signe, motif obligatoire) ; mode école ; empreinte chaînée par caisse ; **ajout seul** (UPDATE / DELETE / TRUNCATE refusés) |
@@ -35,7 +37,6 @@ Source de vérité : `src/server/db/schema.ts`. Migrations : `drizzle/`.
 
 | Module | Tables |
 |---|---|
-| Tiers | `attachments` (pièces jointes : stockage de fichiers) |
 | Catalogue | `stock_movements` (si le module de stock est activé) |
 | Ventes | factures d'acompte et déduction des acomptes, relances |
 | Caisse | conservation des clés publiques successives (rotation) |

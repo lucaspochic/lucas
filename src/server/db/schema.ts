@@ -951,6 +951,37 @@ export const fiscalYearClosures = pgTable(
   (t) => [uniqueIndex("fiscal_year_closures_uq").on(t.companyId, t.fiscalYear)],
 );
 
+// ─── Pièces jointes ─────────────────────────────────────────────────────────
+
+/**
+ * Pièces jointes (justificatifs) : métadonnées en base, contenu sur disque, adressé par
+ * empreinte SHA-256 et rangé par entreprise. Retrait possible tant que la pièce ne justifie
+ * pas une opération validée (service) ; le retrait est un marquage, jamais un effacement.
+ */
+export const attachments = pgTable(
+  "attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    entityType: text("entity_type").$type<"expense" | "sales_document" | "third_party">().notNull(),
+    entityId: uuid("entity_id").notNull(),
+    fileName: text("file_name").notNull(),
+    mimeType: text("mime_type").notNull(),
+    size: integer("size").notNull(),
+    sha256: text("sha256").notNull(),
+    createdBy: uuid("created_by").notNull().references(() => users.id, { onDelete: "restrict" }),
+    createdAt: createdAt(),
+    removedAt: timestamp("removed_at", { withTimezone: true }),
+    removedBy: uuid("removed_by").references(() => users.id, { onDelete: "restrict" }),
+  },
+  (t) => [
+    index("attachments_entity_idx").on(t.companyId, t.entityType, t.entityId),
+    check("attachments_entity_ck", sql`${t.entityType} in ('expense', 'sales_document', 'third_party')`),
+    check("attachments_size_ck", sql`${t.size} > 0`),
+    check("attachments_sha_ck", sql`${t.sha256} ~ '^[0-9a-f]{64}$'`),
+  ],
+);
+
 // ─── Caisse (art. 286, I, 3° bis CGI — conditions ISCA) ─────────────────────
 
 export const cashRegisters = pgTable(
@@ -1222,6 +1253,7 @@ export type ExpensePayment = typeof expensePayments.$inferSelect;
 export type JournalEntry = typeof journalEntries.$inferSelect;
 export type JournalLine = typeof journalLines.$inferSelect;
 export type Lettering = typeof letterings.$inferSelect;
+export type Attachment = typeof attachments.$inferSelect;
 export type FiscalYearClosure = typeof fiscalYearClosures.$inferSelect;
 export type CashRegister = typeof cashRegisters.$inferSelect;
 export type CashSession = typeof cashSessions.$inferSelect;
