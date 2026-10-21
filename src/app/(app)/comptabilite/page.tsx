@@ -19,11 +19,12 @@ import {
 import { loadCompany } from "@/server/services/accounting";
 import { formatEuro } from "@/server/domain/money";
 import { formatDate } from "../ventes/sales-ui";
+import { ClosingView, LetteringView, ManualEntryView, VatView } from "./closing-views";
 
 export const metadata: Metadata = { title: "Comptabilité" };
 
 const BASE = "/comptabilite";
-const VIEWS = ["ecritures", "balance", "grand-livre", "echeancier", "export"] as const;
+const VIEWS = ["ecritures", "balance", "grand-livre", "echeancier", "lettrage", "tva", "saisie", "cloture", "export"] as const;
 const amount = (v: string) => (v === "0.00" ? "" : formatEuro(v));
 
 export default async function AccountingPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -42,7 +43,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
     <>
       <PageHeader
         title="Comptabilité"
-        description={`Exercice ${fiscalYear} — du ${formatDate(from)} au ${formatDate(to)}. Écritures générées automatiquement, validées et intangibles.`}
+        description={`Exercice ${fiscalYear} — du ${formatDate(from)} au ${formatDate(to)}. Écritures automatiques ou saisies en OD, validées et intangibles.`}
         actions={
           <FilterTabs base={BASE} params={params} name="exercice" value={String(fiscalYear)} options={years.map((y) => ({ value: String(y), label: String(y) }))} />
         }
@@ -58,6 +59,10 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
             { value: "balance", label: "Balance" },
             { value: "grand-livre", label: "Grand livre" },
             { value: "echeancier", label: "Échéancier" },
+            { value: "lettrage", label: "Lettrage" },
+            { value: "tva", label: "TVA" },
+            { value: "saisie", label: "Saisie OD" },
+            { value: "cloture", label: "Clôture" },
             { value: "export", label: "Export FEC" },
           ]}
         />
@@ -71,6 +76,10 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
       {view === "balance" && <BalanceView from={from} to={to} ctx={ctx} />}
       {view === "grand-livre" && <LedgerView params={params} from={from} to={to} ctx={ctx} />}
       {view === "echeancier" && <AgedView ctx={ctx} />}
+      {view === "lettrage" && <LetteringView params={params} ctx={ctx} />}
+      {view === "tva" && <VatView params={params} ctx={ctx} from={from} />}
+      {view === "saisie" && <ManualEntryView ctx={ctx} />}
+      {view === "cloture" && <ClosingView ctx={ctx} fiscalYear={fiscalYear} />}
       {view === "export" && (
         <Card>
           <CardHeader title="Fichier des écritures comptables (FEC)" description="Format de l'article A. 47 A-1 du LPF : tabulation, UTF-8, dates AAAAMMJJ, virgule décimale." />
@@ -91,7 +100,8 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
             )}
             <p className="text-foreground-muted">
               À remettre avec son descriptif (documentation fournie avec le logiciel : <span className="font-mono">docs/13-fec-descriptif.md</span>).
-              Le logiciel ne génère ni les écritures d&apos;inventaire, ni les à-nouveaux, ni le lettrage : à compléter par votre expert-comptable.
+              Le fichier comprend les à-nouveaux (en tête) et le lettrage des comptes de tiers. Les écritures d&apos;inventaire sont à saisir
+              en opérations diverses avec votre expert-comptable.
             </p>
           </CardBody>
         </Card>

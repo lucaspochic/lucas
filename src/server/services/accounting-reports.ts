@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
 import type { Executor } from "../db/client";
-import { companies, expenses, journalEntries, journalLines, journals, ledgerAccounts, salesDocuments, thirdParties, type Company } from "../db/schema";
+import { companies, expenses, journalEntries, journalLines, journals, ledgerAccounts, letteringLines, letterings, salesDocuments, thirdParties, type Company } from "../db/schema";
 import { AppError } from "../errors";
 import { assertPermission, type CompanyContext } from "../security/permissions";
 import { D, dec } from "../domain/money";
@@ -230,13 +230,18 @@ export async function exportFec(db: Executor, ctx: CompanyContext, fiscalYear: n
       debit: journalLines.debit,
       credit: journalLines.credit,
       validatedAt: journalEntries.validatedAt,
+      letterCode: letterings.code,
+      letteredAt: letterings.letteredAt,
     })
     .from(journalLines)
     .innerJoin(journalEntries, eq(journalEntries.id, journalLines.entryId))
     .innerJoin(journals, and(eq(journals.companyId, journalEntries.companyId), eq(journals.code, journalEntries.journalCode)))
     .innerJoin(ledgerAccounts, and(eq(ledgerAccounts.companyId, journalLines.companyId), eq(ledgerAccounts.number, journalLines.accountNumber)))
+    .leftJoin(letteringLines, eq(letteringLines.lineId, journalLines.id))
+    .leftJoin(letterings, eq(letterings.id, letteringLines.letteringId))
     .where(and(eq(journalEntries.companyId, ctx.companyId), eq(journalEntries.fiscalYear, fiscalYear)))
-    .orderBy(asc(journalEntries.entrySeq), asc(journalLines.lineNo));
+    // Les à-nouveaux (reprise des soldes) figurent en tête du fichier.
+    .orderBy(sql`case when ${journalEntries.journalCode} = 'AN' then 0 else 1 end`, asc(journalEntries.entrySeq), asc(journalLines.lineNo));
   const validDate = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(d);
   const lines = rows.map((r) =>
     [
@@ -253,8 +258,8 @@ export async function exportFec(db: Executor, ctx: CompanyContext, fiscalYear: n
       fecText(r.label),
       fecAmount(r.debit),
       fecAmount(r.credit),
-      "",
-      "",
+      r.letterCode ?? "",
+      r.letteredAt ? fecDate(validDate(r.letteredAt)) : "",
       fecDate(validDate(r.validatedAt)),
       "",
       "",

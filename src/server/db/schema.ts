@@ -847,6 +847,73 @@ export const journalLines = pgTable(
   ],
 );
 
+/**
+ * Lettrage : rapprochement de lignes d'un même compte (et compte auxiliaire) dont la somme
+ * est nulle (facture ↔ règlements). Les lignes d'écriture restant intangibles, le lettrage
+ * est porté par ces tables. Délettrage : groupe marqué, liens supprimés (tracé à l'audit).
+ */
+export const letterings = pgTable(
+  "letterings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    accountNumber: text("account_number").notNull(),
+    auxNumber: text("aux_number"),
+    /** Code de lettrage (A, B… Z, AA…), unique par compte : zone FEC EcritureLet. */
+    code: text("code").notNull(),
+    method: text("method").$type<"auto" | "manual">().notNull(),
+    letteredAt: timestamp("lettered_at", { withTimezone: true }).notNull(),
+    letteredBy: uuid("lettered_by").notNull().references(() => users.id, { onDelete: "restrict" }),
+    unletteredAt: timestamp("unlettered_at", { withTimezone: true }),
+    unletteredBy: uuid("unlettered_by").references(() => users.id, { onDelete: "restrict" }),
+  },
+  (t) => [
+    uniqueIndex("letterings_id_company_uq").on(t.id, t.companyId),
+    uniqueIndex("letterings_code_uq").on(t.companyId, t.accountNumber, t.code),
+    check("letterings_method_ck", sql`${t.method} in ('auto', 'manual')`),
+  ],
+);
+
+export const letteringLines = pgTable(
+  "lettering_lines",
+  {
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    letteringId: uuid("lettering_id").notNull(),
+    lineId: uuid("line_id").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.lineId] }),
+    index("lettering_lines_group_idx").on(t.letteringId),
+    foreignKey({
+      name: "lettering_lines_group_company_fk",
+      columns: [t.letteringId, t.companyId],
+      foreignColumns: [letterings.id, letterings.companyId],
+    }).onDelete("restrict"),
+    foreignKey({ name: "lettering_lines_line_fk", columns: [t.lineId], foreignColumns: [journalLines.id] }).onDelete("restrict"),
+  ],
+);
+
+/** Exercices clôturés : aucune écriture ne peut plus y être enregistrée (trigger). */
+export const fiscalYearClosures = pgTable(
+  "fiscal_year_closures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    fiscalYear: integer("fiscal_year").notNull(),
+    periodStart: text("period_start").notNull(),
+    periodEnd: text("period_end").notNull(),
+    /** Résultat de l'exercice (produits − charges) ; positif = bénéfice. */
+    result: numeric("result", { precision: 15, scale: 2 }).notNull(),
+    totalDebit: numeric("total_debit", { precision: 15, scale: 2 }).notNull(),
+    totalCredit: numeric("total_credit", { precision: 15, scale: 2 }).notNull(),
+    entryCount: integer("entry_count").notNull(),
+    openingEntryId: uuid("opening_entry_id"),
+    closedAt: timestamp("closed_at", { withTimezone: true }).notNull(),
+    closedBy: uuid("closed_by").notNull().references(() => users.id, { onDelete: "restrict" }),
+  },
+  (t) => [uniqueIndex("fiscal_year_closures_uq").on(t.companyId, t.fiscalYear)],
+);
+
 // ─── Caisse (art. 286, I, 3° bis CGI — conditions ISCA) ─────────────────────
 
 export const cashRegisters = pgTable(
@@ -1117,6 +1184,8 @@ export type ExpenseLine = typeof expenseLines.$inferSelect;
 export type ExpensePayment = typeof expensePayments.$inferSelect;
 export type JournalEntry = typeof journalEntries.$inferSelect;
 export type JournalLine = typeof journalLines.$inferSelect;
+export type Lettering = typeof letterings.$inferSelect;
+export type FiscalYearClosure = typeof fiscalYearClosures.$inferSelect;
 export type CashRegister = typeof cashRegisters.$inferSelect;
 export type CashSession = typeof cashSessions.$inferSelect;
 export type CashTicket = typeof cashTickets.$inferSelect;

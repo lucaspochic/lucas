@@ -1,4 +1,4 @@
-# Conception — module comptable (itération 6)
+# Conception — module comptable (itérations 6 et 8)
 
 > Le logiciel **prépare** la comptabilité ; il ne remplace pas un expert-comptable et ne garantit pas à lui seul la conformité de la comptabilité de l'entreprise. Plan de comptes et schémas d'écritures **à valider avec l'expert-comptable**.
 
@@ -16,7 +16,9 @@
 | AC | Achats | dépenses validées |
 | BQ1, BQ2… | Banque (un par compte bancaire) | règlements clients et paiements fournisseurs par banque |
 | CA | Caisse | règlements en espèces |
-| OD | Opérations diverses | transfert de TVA sur encaissements |
+| VC | Ventes caisse | tickets de caisse et remboursements |
+| OD | Opérations diverses | transfert de TVA sur encaissements, écarts de caisse, saisies manuelles |
+| AN | À-nouveaux | reprise des soldes à la clôture de l'exercice précédent |
 
 ## Schémas d'écritures
 | Événement | Débit | Crédit |
@@ -34,5 +36,15 @@ Entreprise en **franchise en base** : pas de TVA collectée ; la TVA des fournis
 ## Restitutions
 Journal, grand livre (avec solde progressif), balance générale, échéancier clients / fournisseurs, **export FEC** (art. A. 47 A-1 du LPF : 18 zones, séparateur tabulation, dates AAAAMMJJ, montants à virgule, fichier `SIRENFECAAAAMMJJ.txt`).
 
-## Hors périmètre de cette itération (documenté)
-Lettrage automatique des comptes de tiers (zones FEC `EcritureLet` / `DateLet` laissées vides), clôture d'exercice et à-nouveaux, déclaration de TVA (CA3), immobilisations et amortissements, paie.
+## Travaux de fin de période (itération 8)
+
+**Lettrage** (comptes 411 et 401). Les lignes d'écriture restant intangibles, le lettrage est porté par `letterings` / `lettering_lines`. Règles : lignes d'un même compte, d'un même tiers et d'un même exercice, de solde nul (contrôle différé en base) ; code A, B… AA… attribué dans l'ordre par compte et jamais réutilisé ; délettrage tracé. Lettrage automatique, au sein de chaque exercice : (0) contre-passation ↔ règlement annulé ; (1) groupes reliés par les pièces (facture ↔ règlements imputés, avoir ↔ facture, dépense ↔ paiements) de solde nul ; (2) par tiers, ensemble des lignes restantes de solde nul.
+
+**Clôture d'exercice** (permission `accounting.close` : propriétaire, comptable). Contrôles : exercice terminé ; exercices antérieurs clôturés ; écritures équilibrées ; numérotation continue ; journées de caisse de l'exercice clôturées. Effets : écriture d'à-nouveaux au premier jour de l'exercice suivant (classes 1 à 5 reprises par compte et par tiers, résultat en 120000 bénéfice / 129000 perte, en attente d'affectation) ; enregistrement définitif (`fiscal_year_closures`, ajout seul) ; toute écriture sur l'exercice est ensuite refusée par le service **et** par un trigger. Aucune réouverture.
+
+**Saisie d'opérations diverses** : écritures d'inventaire, affectation du résultat, corrections ; équilibrée, validée dès l'enregistrement, idempotente, refusée sur un exercice clos, auditée. Un compte absent du plan est créé avec l'intitulé saisi ; le tiers doit exister.
+
+**Aide à la déclaration de TVA** : par mois ou trimestre de l'exercice, depuis les écritures hors à-nouveaux : TVA collectée exigible par taux (44571x, base HT reconstituée), déductible sur biens et services (445660) et immobilisations (445620), solde dû ou crédit, TVA en attente (44574x) pour information. Ce n'est pas une déclaration : aucun numéro de ligne du formulaire n'est affecté.
+
+## Hors périmètre (documenté)
+Écritures d'inventaire automatiques (immobilisations et plan d'amortissement, stocks), télédéclaration de TVA, régimes particuliers (autoliquidation, intracommunautaire, régularisations), paie, lettrage des comptes autres que 411 / 401.

@@ -479,3 +479,24 @@ export const addMemberSchema = z.object({
   email: emailSchema,
   role: z.enum(MEMBER_ROLES),
 });
+
+// ─── Comptabilité : saisie d'opérations diverses ────────────────────────────
+
+const manualLine = z.object({
+  account: z.string().trim().regex(/^[1-7]\d{5}$/, "Compte : 6 chiffres (classes 1 à 7)."),
+  accountLabel: optionalText(120),
+  auxNumber: optionalText(20),
+  label: optionalText(200),
+  debit: z.union([z.literal(""), decimalField("Débit", 2)]).default(""),
+  credit: z.union([z.literal(""), decimalField("Crédit", 2)]).default(""),
+});
+
+export const manualEntrySchema = z.object({
+  /** Clé d'idempotence générée à l'ouverture du formulaire. */
+  idempotencyKey: z.uuid(),
+  entryDate: isoDate,
+  pieceRef: z.string().trim().min(1, "Référence de pièce requise.").max(40),
+  label: z.string().trim().min(3, "Libellé requis.").max(200),
+  lines: z.array(manualLine).min(2, "Deux lignes au minimum.").max(100),
+});
+export type ManualEntryInput = z.input<typeof manualEntrySchema>;

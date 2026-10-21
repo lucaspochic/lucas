@@ -3,6 +3,7 @@ import type { Executor, Tx } from "../db/client";
 import {
   bankAccounts,
   companies,
+  fiscalYearClosures,
   journalEntries,
   journalLines,
   journals,
@@ -22,6 +23,7 @@ import { D, dec, roundMoney, type Dec } from "../domain/money";
 import { computeDocumentTotals } from "../domain/document-totals";
 import { fiscalYearOf } from "../domain/numbering";
 import { allocateYearlyCounter } from "./sequences";
+import { AppError } from "../errors";
 
 /**
  * Comptabilisation automatique (docs/12-conception-comptabilite.md).
@@ -33,6 +35,8 @@ import { allocateYearlyCounter } from "./sequences";
 // ─── Plan de comptes ────────────────────────────────────────────────────────
 
 export const DEFAULT_CHART: Record<string, string> = {
+  "120000": "Résultat de l'exercice (bénéfice)",
+  "129000": "Résultat de l'exercice (perte)",
   "218300": "Matériel de bureau et matériel informatique",
   "401000": "Fournisseurs",
   "411000": "Clients",
@@ -105,9 +109,10 @@ const FIXED_JOURNALS = {
   AC: { label: "Achats", kind: "purchases" },
   OD: { label: "Opérations diverses", kind: "misc" },
   VC: { label: "Ventes caisse", kind: "sales" },
+  AN: { label: "À-nouveaux", kind: "misc" },
 } as const;
 
-async function ensureJournal(tx: Tx, companyId: string, code: keyof typeof FIXED_JOURNALS) {
+export async function ensureJournal(tx: Tx, companyId: string, code: keyof typeof FIXED_JOURNALS) {
   await tx
     .insert(journals)
     .values({ companyId, code, label: FIXED_JOURNALS[code].label, kind: FIXED_JOURNALS[code].kind })
@@ -162,6 +167,12 @@ export async function postEntry(tx: Tx, company: Company, input: PostingInput, n
   if (lines.length === 0) return null;
   await ensureAccounts(tx, company.id, new Map(lines.map((l) => [l.account, l.accountLabel ?? ""])));
   const fiscalYear = fiscalYearOf(input.entryDate, company.fiscalYearStartMonth);
+  const [closed] = await tx
+    .select({ id: fiscalYearClosures.id })
+    .from(fiscalYearClosures)
+    .where(and(eq(fiscalYearClosures.companyId, company.id), eq(fiscalYearClosures.fiscalYear, fiscalYear)))
+    .limit(1);
+  if (closed) throw new AppError("VALIDATION", `L'exercice ${fiscalYear} est clôturé : aucune opération ne peut plus y être enregistrée (date ${input.entryDate.split("-").reverse().join("/")}).`);
   const entrySeq = await allocateYearlyCounter(tx, company.id, "journal_entry", fiscalYear);
   const [entry] = await tx
     .insert(journalEntries)

@@ -92,6 +92,20 @@
       "when": 1792577131021,
       "tag": "0012_cash_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792584811220,
+      "tag": "0013_accounting_closing",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792584839532,
+      "tag": "0014_accounting_closing_guards",
+      "breakpoints": true
     }
   ]
 }
