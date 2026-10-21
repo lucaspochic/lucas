@@ -37,6 +37,7 @@ export function PaymentForm({
   clientId,
   invoices,
   preselectedInvoiceId,
+  accounts,
 }: {
   kind: "receipt" | "refund";
   today: string;
@@ -44,6 +45,7 @@ export function PaymentForm({
   clientId: string;
   invoices: OpenInvoice[];
   preselectedInvoiceId: string | null;
+  accounts: { id: string; label: string; kind: "bank" | "cash"; isDefault: boolean }[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -58,6 +60,8 @@ export function PaymentForm({
   const [paymentDate, setPaymentDate] = useState(today);
   const [method, setMethod] = useState<(typeof PAYMENT_METHODS)[number]>("transfer");
   const [reference, setReference] = useState("");
+  const [accountId, setAccountId] = useState("");
+  const accountOptions = accounts.filter((a) => a.kind === (method === "cash" ? "cash" : "bank"));
 
   const totals = useMemo(() => {
     const allocated = Object.values(allocs).reduce((acc, v) => acc.plus(safeDec(v) ?? new D(0)), new D(0));
@@ -97,6 +101,7 @@ export function PaymentForm({
         method,
         amount: toNumberText(amount),
         reference,
+        bankAccountId: accountId || null,
         allocations: Object.entries(allocs).map(([documentId, v]) => ({ documentId, amount: toNumberText(v) || "0" })),
       });
       if (!result.ok) return setError(result.error);
@@ -135,7 +140,14 @@ export function PaymentForm({
             <Input id="amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" />
           </Field>
           <Field label="Mode de paiement" htmlFor="method" required>
-            <Select id="method" value={method} onChange={(e) => setMethod(e.target.value as typeof method)}>
+            <Select
+              id="method"
+              value={method}
+              onChange={(e) => {
+                setMethod(e.target.value as typeof method);
+                setAccountId("");
+              }}
+            >
               {PAYMENT_METHODS.map((m) => (
                 <option key={m} value={m}>
                   {PAYMENT_METHOD_LABELS[m]}
@@ -143,7 +155,17 @@ export function PaymentForm({
               ))}
             </Select>
           </Field>
-          <Field label="Référence" htmlFor="reference" hint="N° de chèque, référence du virement…" className="sm:col-span-2">
+          <Field label="Compte de trésorerie" htmlFor="account" hint="Espèces : caisse ; autres modes : compte bancaire.">
+            <Select id="account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+              <option value="">Par défaut ({accountOptions.find((a) => a.isDefault)?.label ?? "aucun"})</option>
+              {accountOptions.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Référence" htmlFor="reference" hint="N° de chèque, référence du virement…">
             <Input id="reference" value={reference} maxLength={80} onChange={(e) => setReference(e.target.value)} />
           </Field>
         </CardBody>

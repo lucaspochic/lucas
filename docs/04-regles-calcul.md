@@ -44,3 +44,14 @@ L'exercice d'une date est désigné par l'année de sa clôture : début au 1er 
 - Le total HT d'une ligne est stocké **avant** remise globale ; la remise globale est appliquée par le moteur de calcul ligne par ligne puis regroupée par taux (§2). Le document affiche « Total lignes HT », « Remise globale », « Total HT ».
 - Cumul des avoirs d'une facture ≤ total TTC de la facture (contrôle à l'émission, sous verrou de la facture d'origine).
 - Échéance d'une facture = date d'émission + délai du client (à défaut, délai de l'entreprise) ; validité d'un devis : 30 jours.
+
+## 8. Tableau de bord (itération 5)
+- **Chiffre d'affaires HT** : Σ HT des factures émises − Σ HT des avoirs émis dont la date d'émission est dans la période. Brouillons et devis exclus.
+- **Encaissements** : Σ des règlements (encaissements − remboursements ± contre-passations) dont la date de paiement est dans la période.
+- **Créances clients** (à date) : Σ des restes à payer positifs (TTC − avoirs − réglé) des factures émises.
+- **Factures en retard** : créances dont l'échéance est dépassée.
+- **TVA collectée (estimation)** : Σ TVA des factures − Σ TVA des avoirs émis dans la période. Pour les prestations sans option sur les débits, la TVA est exigible à l'encaissement : estimation à valider avec la déclaration.
+- **Dépenses** : Σ HT des dépenses validées dont la date de facture est dans la période.
+- **Trésorerie disponible (comptable)** : Σ (ouverture + règlements clients − paiements fournisseurs) des comptes de trésorerie.
+- **Prévision** : créances et dépenses à payer dont l'échéance tombe dans l'horizon (échus inclus).
+- Dépenses : TVA de la facture fournisseur acceptée si l'écart avec la TVA calculée est ≤ max(0,05 €, 1 %).

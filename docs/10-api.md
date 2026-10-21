@@ -67,3 +67,16 @@ Les formulaires d'authentification utilisent `loginFormAction`, `registerFormAct
 | `reversePaymentAction(id, { idempotencyKey, reason })` | `payments.write` | Contre-passation (montant opposé, motif obligatoire, une seule fois) | `payment.reversed` |
 
 Lecture : `listPayments`, `getPayment`, `paymentsForInvoice`, `invoiceBalances` (reste à payer = TTC − avoirs émis − réglé ; statut dérivé).
+
+## Itération 5 (tableau de bord, dépenses, trésorerie)
+
+| Action / service | Permission | Effet | Audit |
+|---|---|---|---|
+| `getDashboard(période)` | `sales.read` | Indicateurs calculés sur les données réelles (docs/04 §8) | — |
+| `createExpenseAction`, `updateExpenseAction`, `deleteExpenseAction` | `purchases.write` | Brouillon de dépense | `expense.draft_*` |
+| `validateExpenseAction` | `purchases.write` | N° ACH-AAAA-NNNNN, dépense figée | `expense.validated` |
+| `payExpenseAction` (clé d'idempotence) | `purchases.write` | Paiement fournisseur PF-AAAA-NNNNN, ≤ reste à payer | `expense.paid` |
+| `reverseExpensePaymentAction` | `purchases.write` | Contre-passation (motif obligatoire) | `expense.payment_reversed` |
+| `createBankAccountAction`, `setDefaultBankAccountAction` | `treasury.write` | Comptes 512xxx / 530xxx | `bank_account.*` |
+| `importStatementAction(compte, csv)` | `treasury.write` | Import tout-ou-rien, dédoublonné par empreinte | `bank_statement.imported` |
+| `reconcileAction`, `unreconcileAction` | `treasury.write` | Rapprochement ligne de relevé ↔ règlement | `bank_transaction.*` |

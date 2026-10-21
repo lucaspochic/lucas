@@ -4,6 +4,7 @@ import { getDb } from "@/server/db/client";
 import { requirePermission } from "@/server/http/session";
 import { invoiceBalances } from "@/server/services/payments";
 import { listCustomerOptions } from "@/server/services/sales";
+import { treasuryAccountOptions } from "@/server/services/treasury";
 import { todayInParis } from "@/server/domain/numbering";
 import { PaymentForm } from "./payment-form";
 
@@ -14,7 +15,7 @@ export default async function NewPaymentPage({ searchParams }: { searchParams: P
   const { ctx } = await requirePermission("payments.write");
   const db = await getDb();
   const kind = params.type === "remboursement" ? "refund" : "receipt";
-  const customers = await listCustomerOptions(db, ctx);
+  const [customers, accounts] = await Promise.all([listCustomerOptions(db, ctx), treasuryAccountOptions(db, ctx)]);
   const clientId = customers.find((c) => c.id === params.client)?.id ?? "";
   const balances = clientId ? await invoiceBalances(db, ctx, { thirdPartyId: clientId }) : [];
   const open = balances.filter((b) => (kind === "receipt" ? Number(b.remaining) > 0 : Number(b.remaining) < 0));
@@ -32,6 +33,7 @@ export default async function NewPaymentPage({ searchParams }: { searchParams: P
       <PaymentForm
         kind={kind}
         today={todayInParis()}
+        accounts={accounts.map((a) => ({ id: a.id, label: a.name, kind: a.kind, isDefault: a.isDefault }))}
         customers={customers.map((c) => ({ id: c.id, label: `${c.name} (${c.code})` }))}
         clientId={clientId}
         invoices={open.map((b) => ({

@@ -16,6 +16,8 @@ Source de vérité : `src/server/security/permissions.ts`. Testée par `tests/un
 | sales.issue — émettre factures et avoirs | ✓ | ✓ | | ✓ | | |
 | payments.write — enregistrer un règlement | ✓ | ✓ | ✓ | ✓ | | |
 | accounting.read / write | ✓ / ✓ | ✓ / ✓ | ✓ / ✓ | ✓ / – | | ✓ / – |
+| purchases.read / write — dépenses fournisseurs | ✓ / ✓ | ✓ / ✓ | ✓ / ✓ | | | ✓ / – |
+| treasury.read / write — comptes, relevés, rapprochement | ✓ / ✓ | ✓ / ✓ | ✓ / ✓ | | | ✓ / – |
 | accounting.close — clôturer un exercice | ✓ | | ✓ | | | |
 | cash.operate — encaisser en caisse | ✓ | ✓ | | | ✓ | |
 | cash.close — clôturer la caisse | ✓ | ✓ | | | | |

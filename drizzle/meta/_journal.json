@@ -50,6 +50,20 @@
       "when": 1792565264347,
       "tag": "0006_payments_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792568450832,
+      "tag": "0007_treasury_expenses",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792568496433,
+      "tag": "0008_treasury_guards",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,7 @@ import {
   FileText,
   LayoutDashboard,
   Package,
+  Receipt,
   ScrollText,
   ShieldCheck,
   Store,
@@ -39,7 +40,8 @@ function navSections({ canSeeAudit, canManageMembers }: NavProps) {
     { href: "/catalogue", label: "Produits & services", icon: Package },
     { href: "/ventes", label: "Devis & factures", icon: FileText },
     { href: "/reglements", label: "Règlements", icon: Banknote },
-    { href: "#tresorerie", label: "Trésorerie", icon: Wallet, upcoming: true },
+    { href: "/depenses", label: "Dépenses", icon: Receipt },
+    { href: "/tresorerie", label: "Trésorerie", icon: Wallet },
     { href: "#comptabilite", label: "Comptabilité", icon: BookOpen, upcoming: true },
     { href: "#caisse", label: "Caisse", icon: Store, upcoming: true },
   ];

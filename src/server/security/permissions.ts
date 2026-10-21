@@ -20,6 +20,10 @@ export const PERMISSIONS = [
   "sales.write",
   "sales.issue",
   "payments.write",
+  "purchases.read",
+  "purchases.write",
+  "treasury.read",
+  "treasury.write",
   "accounting.read",
   "accounting.write",
   "accounting.close",
@@ -36,6 +40,8 @@ const READ_ONLY: Permission[] = [
   "catalog.read",
   "sales.read",
   "accounting.read",
+  "purchases.read",
+  "treasury.read",
 ];
 
 export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
@@ -47,6 +53,8 @@ export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "audit.read",
     "audit.verify",
     "payments.write",
+    "purchases.write",
+    "treasury.write",
     "accounting.write",
     "accounting.close",
     "exports.run",

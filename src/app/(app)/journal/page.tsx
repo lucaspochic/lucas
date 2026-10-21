@@ -39,6 +39,17 @@ const ACTION_LABELS: Record<string, string> = {
   "payment.recorded": "Encaissement",
   "payment.refunded": "Remboursement",
   "payment.reversed": "Contre-passation d'un règlement",
+  "expense.draft_created": "Création d'une dépense",
+  "expense.draft_updated": "Modification d'une dépense",
+  "expense.draft_deleted": "Suppression d'un brouillon de dépense",
+  "expense.validated": "Validation d'une dépense",
+  "expense.paid": "Paiement fournisseur",
+  "expense.payment_reversed": "Contre-passation d'un paiement fournisseur",
+  "bank_account.created": "Création d'un compte de trésorerie",
+  "bank_account.default_set": "Compte de trésorerie par défaut",
+  "bank_statement.imported": "Import de relevé bancaire",
+  "bank_transaction.reconciled": "Rapprochement bancaire",
+  "bank_transaction.unreconciled": "Annulation de rapprochement",
 };
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {

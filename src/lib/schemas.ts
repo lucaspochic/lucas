@@ -315,6 +315,8 @@ export const paymentSchema = z
     /** Clé d'idempotence générée à l'ouverture du formulaire : un double envoi ne crée qu'un règlement. */
     idempotencyKey: z.uuid(),
     kind: z.enum(["receipt", "refund"]),
+    /** Compte de trésorerie ; à défaut, compte par défaut (caisse pour les espèces, banque sinon). */
+    bankAccountId: z.uuid().nullable().optional(),
     thirdPartyId: z.uuid("Client requis."),
     paymentDate: isoDate,
     method: z.enum(PAYMENT_METHODS),
@@ -331,6 +333,97 @@ export const paymentSchema = z
   });
 export type PaymentInput = z.input<typeof paymentSchema>;
 export type PaymentData = z.output<typeof paymentSchema>;
+
+// ─── Trésorerie et achats ───────────────────────────────────────────────────
+
+export const bankAccountSchema = z.object({
+  kind: z.enum(["bank", "cash"]),
+  name: z.string().trim().min(2, "Nom requis.").max(60),
+  bankName: optionalText(80),
+  iban: optionalText(42)
+    .transform((v) => (v ? v.replace(/\s/g, "").toUpperCase() : v))
+    .refine((v) => !v || isValidIban(v), "IBAN invalide."),
+  openingBalance: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/[\s  €]/g, "").replace(",", ".") || "0")
+    .refine((v) => /^-?\d{1,11}(\.\d{1,2})?$/.test(v), "Montant invalide."),
+  openingDate: isoDate,
+  ledgerAccount: z
+    .string()
+    .trim()
+    .regex(/^(512|530)\d{0,5}$/, "Compte 512xxx (banque) ou 530xxx (caisse)."),
+}).refine((v) => (v.kind === "bank") === v.ledgerAccount.startsWith("512"), {
+  path: ["ledgerAccount"],
+  message: "Banque : compte 512… ; caisse : compte 530….",
+});
+
+/**
+ * Catégories de dépenses et comptes du plan comptable général associés (PCG, classe 6 ;
+ * classe 2 pour les immobilisations). Liste indicative, à valider avec l'expert-comptable.
+ */
+export const EXPENSE_CATEGORIES = {
+  marchandises: { label: "Achats de marchandises", account: "607000" },
+  matieres: { label: "Matières premières et fournitures", account: "601000" },
+  sous_traitance: { label: "Sous-traitance", account: "611000" },
+  energie: { label: "Eau, électricité, gaz", account: "606100" },
+  carburant: { label: "Carburant", account: "606140" },
+  petit_materiel: { label: "Petit équipement et fournitures", account: "606300" },
+  fournitures_bureau: { label: "Fournitures de bureau", account: "606400" },
+  loyer: { label: "Loyers et charges locatives", account: "613200" },
+  entretien: { label: "Entretien et réparations", account: "615000" },
+  assurances: { label: "Assurances", account: "616000" },
+  honoraires: { label: "Honoraires (comptable, avocat…)", account: "622600" },
+  publicite: { label: "Publicité et communication", account: "623000" },
+  transport: { label: "Transports de biens", account: "624100" },
+  deplacements: { label: "Déplacements, missions, réceptions", account: "625100" },
+  telecom: { label: "Téléphone et internet", account: "626000" },
+  frais_bancaires: { label: "Frais bancaires", account: "627000" },
+  logiciels: { label: "Abonnements et logiciels", account: "651000" },
+  immobilisation: { label: "Matériel immobilisé (> 500 € HT)", account: "218300" },
+  autre: { label: "Autres charges", account: "628000" },
+} as const;
+export type ExpenseCategory = keyof typeof EXPENSE_CATEGORIES;
+export const EXPENSE_CATEGORY_KEYS = Object.keys(EXPENSE_CATEGORIES) as ExpenseCategory[];
+export const FRENCH_VAT_RATES = ["20", "10", "5.5", "2.1", "0"] as const;
+
+export const expenseLineSchema = z.object({
+  category: z.enum(EXPENSE_CATEGORY_KEYS as [ExpenseCategory, ...ExpenseCategory[]]),
+  description: z.string().trim().min(1, "Libellé requis.").max(300),
+  amountExclTax: decimalField("Montant HT", 2, { positive: true }),
+  vatRate: z.enum(FRENCH_VAT_RATES),
+  /** TVA figurant sur la facture du fournisseur ; vide = calculée. */
+  vatAmount: z
+    .union([z.literal(""), decimalField("TVA", 2)])
+    .transform((v) => (v === "" ? null : v))
+    .nullable()
+    .optional(),
+});
+
+export const expenseSchema = z.object({
+  thirdPartyId: z.uuid("Fournisseur requis."),
+  supplierReference: optionalText(60),
+  invoiceDate: isoDate,
+  dueDate: z
+    .union([z.literal(""), isoDate])
+    .transform((v) => (v === "" ? null : v))
+    .nullable()
+    .optional(),
+  notes: optionalText(2000),
+  lines: z.array(expenseLineSchema).min(1, "Ajoutez au moins une ligne.").max(50),
+});
+export type ExpenseInput = z.input<typeof expenseSchema>;
+export type ExpenseData = z.output<typeof expenseSchema>;
+
+export const expensePaymentSchema = z.object({
+  idempotencyKey: z.uuid(),
+  /** Compte de trésorerie ; à défaut, compte par défaut selon le mode de paiement. */
+  bankAccountId: z.uuid().nullable().optional(),
+  paymentDate: isoDate,
+  method: z.enum(PAYMENT_METHODS),
+  amount: decimalField("Montant", 2, { positive: true }),
+  reference: optionalText(80),
+});
 
 export const reversalSchema = z.object({
   idempotencyKey: z.uuid(),

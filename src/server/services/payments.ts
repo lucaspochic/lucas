@@ -19,6 +19,7 @@ import { GENESIS_HASH, appendAuditEvent } from "./audit";
 import { allocateDocumentNumber } from "./sequences";
 import { likePattern, PAGE_SIZE, type ListParams } from "./listing";
 import { isUuid } from "./third-parties";
+import { resolveTreasuryAccount } from "./treasury";
 import { paymentSchema, reversalSchema, type PaymentData } from "@/lib/schemas";
 
 /**
@@ -130,6 +131,8 @@ function paymentHashContent(p: Omit<Payment, "hash" | "id">, allocations: { docu
     reference: p.reference,
     reversesPaymentId: p.reversesPaymentId,
     reason: p.reason,
+    // Absent (undefined) pour les règlements antérieurs au compte de trésorerie : empreinte inchangée.
+    bankAccountId: p.bankAccountId ?? undefined,
     allocations: [...allocations].sort((a, b) => a.documentId.localeCompare(b.documentId)).map((a) => [a.documentId, a.amount]),
   };
 }
@@ -301,6 +304,7 @@ export async function recordPayment(db: Db, ctx: CompanyContext, raw: unknown, o
       }
     }
 
+    const account = await resolveTreasuryAccount(tx, ctx, data.method, data.bankAccountId);
     const sign = data.kind === "refund" ? -1 : 1;
     const signed = (v: string) => dec(v).times(sign).toFixed(2);
     const payment = await insertPayment(
@@ -315,6 +319,7 @@ export async function recordPayment(db: Db, ctx: CompanyContext, raw: unknown, o
         amount: signed(data.amount),
         reference: data.reference ?? null,
         reversesPaymentId: null,
+        bankAccountId: account.id,
         reason: null,
       },
       data.allocations.map((a) => ({ documentId: a.documentId, amount: signed(a.amount) })),
@@ -381,6 +386,7 @@ export async function reversePayment(db: Db, ctx: CompanyContext, paymentId: str
         amount: neg(original.amount),
         reference: original.number,
         reversesPaymentId: original.id,
+        bankAccountId: original.bankAccountId,
         reason: data.reason,
       },
       allocations.map((a) => ({ documentId: a.documentId, amount: neg(a.amount) })),

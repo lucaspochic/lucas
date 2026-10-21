@@ -491,6 +491,8 @@ export const payments = pgTable(
     reference: text("reference"),
     reversesPaymentId: uuid("reverses_payment_id"),
     reason: text("reason"),
+    /** Compte de trésorerie crédité (512 / 530) ; null pour les règlements antérieurs à l'itération 5. */
+    bankAccountId: uuid("bank_account_id"),
     chainSeq: integer("chain_seq").notNull(),
     prevHash: text("prev_hash").notNull(),
     hash: text("hash").notNull(),
@@ -507,6 +509,11 @@ export const payments = pgTable(
       name: "payments_third_party_company_fk",
       columns: [t.thirdPartyId, t.companyId],
       foreignColumns: [thirdParties.id, thirdParties.companyId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "payments_bank_account_company_fk",
+      columns: [t.bankAccountId, t.companyId],
+      foreignColumns: [bankAccounts.id, bankAccounts.companyId],
     }).onDelete("restrict"),
     foreignKey({
       name: "payments_reverses_company_fk",
@@ -553,6 +560,186 @@ export const paymentAllocations = pgTable(
   ],
 );
 
+// ─── Trésorerie ─────────────────────────────────────────────────────────────
+
+export const treasuryAccountKindEnum = pgEnum("treasury_account_kind", ["bank", "cash"]);
+
+/** Comptes de trésorerie : comptes bancaires (512) et caisse espèces (530). */
+export const bankAccounts = pgTable(
+  "bank_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    kind: treasuryAccountKindEnum("kind").notNull(),
+    name: text("name").notNull(),
+    bankName: text("bank_name"),
+    iban: text("iban"),
+    openingBalance: numeric("opening_balance", { precision: 15, scale: 2 }).notNull().default("0"),
+    openingDate: text("opening_date").notNull(),
+    /** Compte comptable (ex. 512000, 512100, 530000). */
+    ledgerAccount: text("ledger_account").notNull(),
+    isDefault: boolean("is_default").notNull().default(false),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("bank_accounts_id_company_uq").on(t.id, t.companyId),
+    uniqueIndex("bank_accounts_name_uq").on(t.companyId, sql`lower(${t.name})`),
+    uniqueIndex("bank_accounts_ledger_uq").on(t.companyId, t.ledgerAccount),
+    check("bank_accounts_ledger_ck", sql`${t.ledgerAccount} ~ '^(512|530)[0-9]{0,5}$'`),
+  ],
+);
+
+/** Lignes de relevé bancaire importées (dédoublonnées par empreinte). */
+export const bankTransactions = pgTable(
+  "bank_transactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    bankAccountId: uuid("bank_account_id").notNull(),
+    operationDate: text("operation_date").notNull(),
+    label: text("label").notNull(),
+    amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    importId: uuid("import_id").notNull(),
+    /** Rapprochement (état de travail, modifiable et tracé). */
+    matchedPaymentId: uuid("matched_payment_id"),
+    matchedExpensePaymentId: uuid("matched_expense_payment_id"),
+    reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
+    reconciledBy: uuid("reconciled_by").references(() => users.id, { onDelete: "restrict" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("bank_transactions_fingerprint_uq").on(t.bankAccountId, t.fingerprint),
+    uniqueIndex("bank_transactions_payment_uq").on(t.matchedPaymentId),
+    uniqueIndex("bank_transactions_expense_payment_uq").on(t.matchedExpensePaymentId),
+    index("bank_transactions_account_idx").on(t.companyId, t.bankAccountId, t.operationDate),
+    foreignKey({
+      name: "bank_transactions_account_company_fk",
+      columns: [t.bankAccountId, t.companyId],
+      foreignColumns: [bankAccounts.id, bankAccounts.companyId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "bank_transactions_payment_company_fk",
+      columns: [t.matchedPaymentId, t.companyId],
+      foreignColumns: [payments.id, payments.companyId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "bank_transactions_expense_payment_company_fk",
+      columns: [t.matchedExpensePaymentId, t.companyId],
+      foreignColumns: [expensePayments.id, expensePayments.companyId],
+    }).onDelete("restrict"),
+    check("bank_transactions_single_match_ck", sql`${t.matchedPaymentId} is null or ${t.matchedExpensePaymentId} is null`),
+  ],
+);
+
+// ─── Achats : dépenses (factures fournisseurs) et paiements fournisseurs ────
+
+export const expenseStatusEnum = pgEnum("expense_status", ["draft", "validated"]);
+
+export const expenses = pgTable(
+  "expenses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    status: expenseStatusEnum("status").notNull().default("draft"),
+    /** N° interne attribué à la validation (ACH-AAAA-NNNNN). */
+    number: text("number"),
+    fiscalYear: integer("fiscal_year"),
+    thirdPartyId: uuid("third_party_id").notNull(),
+    /** Référence de la facture du fournisseur. */
+    supplierReference: text("supplier_reference"),
+    invoiceDate: text("invoice_date").notNull(),
+    dueDate: text("due_date"),
+    totalExclTax: numeric("total_excl_tax", { precision: 15, scale: 2 }).notNull().default("0"),
+    totalVat: numeric("total_vat", { precision: 15, scale: 2 }).notNull().default("0"),
+    totalInclTax: numeric("total_incl_tax", { precision: 15, scale: 2 }).notNull().default("0"),
+    amountPaid: numeric("amount_paid", { precision: 15, scale: 2 }).notNull().default("0"),
+    notes: text("notes"),
+    validatedAt: timestamp("validated_at", { withTimezone: true }),
+    validatedBy: uuid("validated_by").references(() => users.id, { onDelete: "restrict" }),
+    createdBy: uuid("created_by").notNull().references(() => users.id, { onDelete: "restrict" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("expenses_id_company_uq").on(t.id, t.companyId),
+    uniqueIndex("expenses_number_uq").on(t.companyId, t.number),
+    index("expenses_list_idx").on(t.companyId, t.status, t.invoiceDate),
+    foreignKey({
+      name: "expenses_third_party_company_fk",
+      columns: [t.thirdPartyId, t.companyId],
+      foreignColumns: [thirdParties.id, thirdParties.companyId],
+    }).onDelete("restrict"),
+    check("expenses_number_ck", sql`(${t.status} = 'draft') = (${t.number} is null)`),
+    check("expenses_paid_ck", sql`${t.amountPaid} >= 0`),
+  ],
+);
+
+export const expenseLines = pgTable(
+  "expense_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    expenseId: uuid("expense_id").notNull(),
+    position: integer("position").notNull(),
+    category: text("category").notNull(),
+    /** Compte de charge (classe 6) ou d'immobilisation (classe 2) associé à la catégorie. */
+    ledgerAccount: text("ledger_account").notNull(),
+    description: text("description").notNull(),
+    amountExclTax: numeric("amount_excl_tax", { precision: 15, scale: 2 }).notNull(),
+    vatRate: numeric("vat_rate", { precision: 5, scale: 2 }).notNull(),
+    vatAmount: numeric("vat_amount", { precision: 15, scale: 2 }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("expense_lines_position_uq").on(t.expenseId, t.position),
+    foreignKey({
+      name: "expense_lines_expense_company_fk",
+      columns: [t.expenseId, t.companyId],
+      foreignColumns: [expenses.id, expenses.companyId],
+    }).onDelete("cascade"),
+    check("expense_lines_amount_ck", sql`${t.amountExclTax} > 0 and ${t.vatAmount} >= 0`),
+  ],
+);
+
+/** Paiements fournisseurs : en ajout seul (contre-passation pour corriger). */
+export const expensePayments = pgTable(
+  "expense_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    number: text("number").notNull(),
+    expenseId: uuid("expense_id").notNull(),
+    bankAccountId: uuid("bank_account_id").notNull(),
+    paymentDate: text("payment_date").notNull(),
+    method: paymentMethodEnum("method").notNull(),
+    amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+    reference: text("reference"),
+    reversesId: uuid("reverses_id"),
+    reason: text("reason"),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+    createdBy: uuid("created_by").notNull().references(() => users.id, { onDelete: "restrict" }),
+  },
+  (t) => [
+    uniqueIndex("expense_payments_id_company_uq").on(t.id, t.companyId),
+    uniqueIndex("expense_payments_number_uq").on(t.companyId, t.number),
+    uniqueIndex("expense_payments_reverses_uq").on(t.reversesId),
+    index("expense_payments_expense_idx").on(t.companyId, t.expenseId),
+    foreignKey({
+      name: "expense_payments_expense_company_fk",
+      columns: [t.expenseId, t.companyId],
+      foreignColumns: [expenses.id, expenses.companyId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "expense_payments_account_company_fk",
+      columns: [t.bankAccountId, t.companyId],
+      foreignColumns: [bankAccounts.id, bankAccounts.companyId],
+    }).onDelete("restrict"),
+    check("expense_payments_amount_ck", sql`${t.amount} <> 0`),
+    check("expense_payments_reversal_ck", sql`(${t.reversesId} is null) = (${t.amount} > 0) and (${t.reversesId} is null or ${t.reason} is not null)`),
+  ],
+);
+
 // ─── Idempotence des opérations financières ─────────────────────────────────
 
 export const idempotencyKeys = pgTable(
@@ -582,3 +769,8 @@ export type SalesDocumentLine = typeof salesDocumentLines.$inferSelect;
 export type SalesDocumentType = (typeof salesDocumentTypeEnum.enumValues)[number];
 export type Payment = typeof payments.$inferSelect;
 export type PaymentAllocation = typeof paymentAllocations.$inferSelect;
+export type BankAccount = typeof bankAccounts.$inferSelect;
+export type BankTransaction = typeof bankTransactions.$inferSelect;
+export type Expense = typeof expenses.$inferSelect;
+export type ExpenseLine = typeof expenseLines.$inferSelect;
+export type ExpensePayment = typeof expensePayments.$inferSelect;
