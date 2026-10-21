@@ -153,9 +153,9 @@ describe("ventes", () => {
     expect(await accountBalance(c.ctx, "411000")).toBe("0.00");
 
     // Rejouer la comptabilisation ne crée pas de doublon.
+    const { getSalesDocument } = await import("@/server/services/sales");
+    const full = await getSalesDocument(h.db, c.ctx, inv.id); // lecture hors transaction (requêtes parallèles)
     await h.db.transaction(async (tx) => {
-      const { getSalesDocument } = await import("@/server/services/sales");
-      const full = await getSalesDocument(tx, c.ctx, inv.id);
       await postSalesDocument(tx, await loadCompany(tx, c.company.id), { doc: full.doc, lines: full.lines, party: full.party, sourceNumber: null });
     });
     expect((await listEntries(h.db, c.ctx, { fiscalYear: 2026, page: 1 })).total).toBe(2);

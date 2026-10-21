@@ -8,6 +8,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Dossier de build distinct pour les tests de bout en bout (pas de conflit avec le serveur de développement).
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // PGlite charge des fichiers WebAssembly : il ne doit pas être empaqueté.
   serverExternalPackages: ["@electric-sql/pglite", "pg"],
   poweredByHeader: false,

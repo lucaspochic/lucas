@@ -1,6 +1,6 @@
 # Sauvegarde et restauration
 
-> **Statut : procédure rédigée, NON TESTÉE** (PostgreSQL serveur non disponible sur le poste initial). Un test de restauration complet est obligatoire avant la mise en production, puis au moins trimestriellement.
+> **Statut : procédure testée le 21/10/2026** sur PostgreSQL 17 (Docker) : base source migrée et alimentée (devis, acompte, solde, règlement, relance, dépense payée, caisse avec clôture signée, lettrage), `pg_dump --format=custom` (187 ko), `pg_restore` dans une base neuve, puis `npm run audit:verify` (toutes chaînes intègres) et `npm run restore:compare` (40 tables, 154 lignes, 8 compteurs, 5 têtes de chaîne, 57 déclencheurs : aucune différence ; un écart volontaire est bien détecté, code de sortie 2). Le test reste à refaire sur l'hébergement retenu avant la mise en production, puis au moins trimestriellement. Le chiffrement `age` et la sauvegarde des pièces jointes n'ont pas été exécutés lors de ce test.
 
 ## Production (PostgreSQL)
 
@@ -25,11 +25,19 @@ Les fichiers sont nommés par leur empreinte SHA-256 et ne sont jamais modifiés
 Les clés `CASH_SIGNING_KEY` et `APP_ENCRYPTION_KEY` sont sauvegardées **séparément** (coffre de secrets) : sans `APP_ENCRYPTION_KEY`, les secrets de double authentification sont illisibles (chaque utilisateur devra être réinitialisé avec `npm run user:reset-mfa`).
 
 ### Restauration
+Avec le PostgreSQL du `docker compose` (outils clients inclus dans le conteneur) :
+```bash
+docker compose exec -T db pg_dump -U gestion --format=custom --no-owner gestion > gestion.dump
+docker compose exec -T db createdb -U gestion gestion_restauree
+docker compose exec -T db pg_restore -U gestion --no-owner --exit-on-error --dbname=gestion_restauree < gestion.dump
+```
+Procédure générique :
 ```bash
 age -d -i cle-privee.txt gestion-AAAA-MM-JJ.dump.age > gestion.dump
 createdb gestion_restauree
 pg_restore --no-owner --dbname=gestion_restauree gestion.dump
 DATABASE_URL=postgres://…/gestion_restauree npm run audit:verify   # doit sortir avec le code 0
+npm run restore:compare -- postgres://…/gestion postgres://…/gestion_restauree   # aucune différence (code 0)
 ```
 Puis : démarrer l'application sur la base restaurée, se connecter, contrôler les derniers documents.
 

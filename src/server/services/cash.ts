@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import type { Db, Executor, Tx } from "../db/client";
+import { inSequence } from "../db/sequential";
 import {
   bankAccounts,
   cashArchives,
@@ -537,7 +538,7 @@ async function dayClosure(tx: Tx, register: CashRegister, date: string, closedBy
     .orderBy(asc(cashTickets.seq));
   const real = tickets.filter((t) => !t.training);
   const ids = real.map((t) => t.id);
-  const [lines, pays, [prev]] = await Promise.all([
+  const [lines, pays, [prev]] = await inSequence([
     ids.length ? tx.select().from(cashTicketLines).where(inArray(cashTicketLines.ticketId, ids)) : Promise.resolve([]),
     ids.length ? tx.select().from(cashTicketPayments).where(inArray(cashTicketPayments.ticketId, ids)) : Promise.resolve([]),
     tx.select().from(cashClosures).where(and(eq(cashClosures.registerId, register.id), eq(cashClosures.kind, "day"))).orderBy(desc(cashClosures.periodStart)).limit(1),
@@ -792,7 +793,7 @@ export async function exportArchive(db: Db, ctx: CompanyContext, registerId: str
     const missing = unclosed.filter((d) => !closures.some((c) => c.kind === "day" && c.periodStart === d));
     if (missing.length) throw new AppError("VALIDATION", `Archivage impossible : journée(s) non clôturée(s) : ${missing.join(", ")}.`);
     const ids = tickets.map((t) => t.id);
-    const [lines, pays, sessions] = await Promise.all([
+    const [lines, pays, sessions] = await inSequence([
       ids.length ? tx.select().from(cashTicketLines).where(inArray(cashTicketLines.ticketId, ids)).orderBy(asc(cashTicketLines.ticketId), asc(cashTicketLines.position)) : Promise.resolve([]),
       ids.length ? tx.select().from(cashTicketPayments).where(inArray(cashTicketPayments.ticketId, ids)) : Promise.resolve([]),
       tx.select().from(cashSessions).where(and(eq(cashSessions.registerId, register.id), sql`${cashSessions.openedAt}::date between ${from}::date and ${to}::date`)),

@@ -12,3 +12,8 @@ coverage/
 playwright-report/
 test-results/
 .claude/
+
+# Tests de bout en bout
+.next-e2e/
+test-results/
+playwright-report/

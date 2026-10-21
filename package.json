@@ -23,7 +23,9 @@
     "user:reset-password": "tsx scripts/reset-password.ts",
     "check": "npm run typecheck && npm run lint && npm run test",
     "cash:keygen": "tsx scripts/cash-keygen.ts",
-    "user:reset-mfa": "tsx scripts/reset-mfa.ts"
+    "user:reset-mfa": "tsx scripts/reset-mfa.ts",
+    "restore:compare": "tsx scripts/restore-compare.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.10",
@@ -46,6 +48,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.15.0",

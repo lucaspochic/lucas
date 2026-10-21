@@ -1,6 +1,7 @@
 import { and, asc, eq, gte, inArray, isNull, like, lt, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { Db, Executor, Tx } from "../db/client";
+import { inSequence } from "../db/sequential";
 import {
   cashClosures,
   cashTickets,
@@ -158,7 +159,7 @@ export async function autoLetter(db: Db, ctx: CompanyContext, opts: { now?: Date
       return root;
     };
     const union = (a: string, b: string) => parent.set(find(a), find(b));
-    const [allocs, reversals, creditNotes, expPays] = await Promise.all([
+    const [allocs, reversals, creditNotes, expPays] = await inSequence([
       tx.select({ p: paymentAllocations.paymentId, d: paymentAllocations.documentId }).from(paymentAllocations).where(eq(paymentAllocations.companyId, ctx.companyId)),
       tx.select({ id: payments.id, of: payments.reversesPaymentId }).from(payments).where(and(eq(payments.companyId, ctx.companyId), sql`${payments.reversesPaymentId} is not null`)),
       tx.select({ id: salesDocuments.id, of: salesDocuments.sourceDocumentId }).from(salesDocuments).where(and(eq(salesDocuments.companyId, ctx.companyId), eq(salesDocuments.type, "credit_note"), ne(salesDocuments.status, "draft"))),
@@ -292,7 +293,7 @@ async function closingState(tx: Executor, ctx: CompanyContext, fiscalYear: numbe
   const company = await loadCompany(tx, ctx.companyId);
   const { from, to } = fiscalYearBounds(company, fiscalYear);
   const today = todayInParis(now);
-  const [[closed], [earlier], ledger, [unclosedCash], [{ count } = { count: 0 }]] = await Promise.all([
+  const [[closed], [earlier], ledger, [unclosedCash], [{ count } = { count: 0 }]] = await inSequence([
     tx.select().from(fiscalYearClosures).where(and(eq(fiscalYearClosures.companyId, ctx.companyId), eq(fiscalYearClosures.fiscalYear, fiscalYear))).limit(1),
     tx
       .select({ year: journalEntries.fiscalYear })
@@ -300,7 +301,7 @@ async function closingState(tx: Executor, ctx: CompanyContext, fiscalYear: numbe
       .leftJoin(fiscalYearClosures, and(eq(fiscalYearClosures.companyId, journalEntries.companyId), eq(fiscalYearClosures.fiscalYear, journalEntries.fiscalYear)))
       .where(and(eq(journalEntries.companyId, ctx.companyId), lt(journalEntries.fiscalYear, fiscalYear), isNull(fiscalYearClosures.id)))
       .limit(1),
-    checkLedger(tx, ctx, fiscalYear),
+    () => checkLedger(tx, ctx, fiscalYear),
     tx
       .select({ date: cashTickets.businessDate })
       .from(cashTickets)

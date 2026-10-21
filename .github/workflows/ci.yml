@@ -1,23 +1,29 @@
-# Intégration continue : typage, lint, tests (PGlite), migrations sur PostgreSQL réel, build.
-# Non exécutée à ce jour (pas de dépôt distant). À activer lors de la publication du dépôt.
+# Intégration continue : à chaque envoi sur main et à chaque demande de fusion.
+#  - verification : typage, lint, tests (PGlite), build de production ;
+#  - postgresql : tests sur un PostgreSQL 17 réel (verrous, concurrence, déclencheurs) ;
+#  - bout-en-bout : parcours Playwright dans Chromium sur une base jetable.
 name: CI
+
 on:
   push:
+    branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  PASSWORD_SCRYPT_LOG_N: "14"
+
 jobs:
-  check:
+  verification:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_DB: gestion_ci
-          POSTGRES_USER: ci
-          POSTGRES_PASSWORD: ci
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U ci" --health-interval 5s --health-retries 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,10 +34,53 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
-        env:
-          PASSWORD_SCRYPT_LOG_N: "14"
-      - name: Migrations sur PostgreSQL serveur
-        run: npm run db:migrate
-        env:
-          DATABASE_URL: postgres://ci:ci@localhost:5432/gestion_ci
       - run: npm run build
+
+  postgresql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: gestion
+          POSTGRES_PASSWORD: gestion-ci
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gestion"
+          --health-interval 5s
+          --health-retries 10
+    env:
+      TEST_POSTGRES_URL: postgres://gestion:gestion-ci@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  bout-en-bout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: rapport-playwright
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

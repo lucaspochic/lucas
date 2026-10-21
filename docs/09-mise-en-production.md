@@ -6,13 +6,13 @@
 - [x] Image Docker construite et testée ; `docker compose up` validé le 20/10/2026 (migrations, santé, en-têtes, triggers, inscription désactivée).
 - [ ] Lancer avec un fichier dédié : `docker compose --env-file .env.production up -d --build` (le `.env` de développement est lu automatiquement sinon).
 - [ ] Créer le premier compte : `docker compose run --rm migrate node_modules/.bin/tsx scripts/create-user.ts e-mail "Nom"`.
-- [ ] CI active (typage, lint, tests, migrations sur PostgreSQL réel, build).
+- [ ] Intégration continue : `.github/workflows/ci.yml` (typage, lint, tests PGlite, tests PostgreSQL 17, build, parcours de bout en bout Playwright) — à confirmer au premier passage sur GitHub.
 - [x] Tests de concurrence exécutés sur PostgreSQL 17 serveur (`TEST_POSTGRES_URL`) : numérotation (20/10/2026), suite complète dont tickets de caisse simultanés (21/10/2026, 185/185).
 - [ ] HTTPS obligatoire (reverse proxy), `APP_ENV=production` (cookies Secure, `__Host-`).
 - [ ] `ALLOW_SELF_SIGNUP=false` sauf offre en libre-service assumée.
 - [ ] Secrets dans un gestionnaire de secrets ; aucun `.env` dans l'image.
 - [ ] Utilisateur PostgreSQL applicatif **sans** droit `ALTER TABLE` / `DISABLE TRIGGER` (migrations jouées avec un autre rôle).
-- [ ] Sauvegardes chiffrées actives et **restauration testée** (`docs/08`).
+- [ ] Sauvegardes chiffrées actives sur l'hébergement retenu ; restauration testée localement le 21/10/2026 (`docs/08`), à refaire sur l'hébergement.
 - [ ] Supervision : `/api/health`, collecte des journaux JSON, alertes erreurs, `npm run audit:verify` planifié.
 - [ ] Horloge serveur synchronisée (NTP), fuseau UTC.
 - [ ] Revue de sécurité / test d'intrusion.

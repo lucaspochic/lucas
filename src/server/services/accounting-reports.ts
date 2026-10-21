@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
 import type { Executor } from "../db/client";
+import { inSequence } from "../db/sequential";
 import { companies, expenses, journalEntries, journalLines, journals, ledgerAccounts, letteringLines, letterings, salesDocuments, thirdParties, type Company } from "../db/schema";
 import { AppError } from "../errors";
 import { assertPermission, type CompanyContext } from "../security/permissions";
@@ -275,7 +276,7 @@ export async function exportFec(db: Executor, ctx: CompanyContext, fiscalYear: n
 /** Contrôles de cohérence d'un exercice : équilibre global et continuité de la numérotation. */
 export async function checkLedger(db: Executor, ctx: CompanyContext, fiscalYear: number) {
   assertPermission(ctx, "accounting.read");
-  const [[sums], seqs] = await Promise.all([
+  const [[sums], seqs] = await inSequence([
     db
       .select({ debit: sql<string>`coalesce(sum(${journalLines.debit}), 0)::text`, credit: sql<string>`coalesce(sum(${journalLines.credit}), 0)::text` })
       .from(journalLines)
