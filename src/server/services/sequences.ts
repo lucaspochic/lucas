@@ -29,6 +29,20 @@ export async function allocateCounter(tx: Tx, companyId: string, key: string): P
   return value;
 }
 
+/** Compteur continu par clé et par exercice (ex. numéros d'écritures comptables). */
+export async function allocateYearlyCounter(tx: Tx, companyId: string, key: string, fiscalYear: number): Promise<number> {
+  await tx.insert(documentSequences).values({ companyId, documentType: key, fiscalYear, lastValue: 0 }).onConflictDoNothing();
+  const where = and(
+    eq(documentSequences.companyId, companyId),
+    eq(documentSequences.documentType, key),
+    eq(documentSequences.fiscalYear, fiscalYear),
+  );
+  const [current] = await tx.select({ lastValue: documentSequences.lastValue }).from(documentSequences).where(where).for("update");
+  const value = (current?.lastValue ?? 0) + 1;
+  await tx.update(documentSequences).set({ lastValue: value, updatedAt: sql`now()` }).where(where);
+  return value;
+}
+
 export async function allocateDocumentNumber(
   tx: Tx,
   params: { companyId: string; documentType: DocumentType; fiscalYear: number; prefix: string },

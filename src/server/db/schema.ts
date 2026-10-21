@@ -740,6 +740,113 @@ export const expensePayments = pgTable(
   ],
 );
 
+// ─── Comptabilité ───────────────────────────────────────────────────────────
+
+/** Plan de comptes de l'entreprise (PCG). */
+export const ledgerAccounts = pgTable(
+  "ledger_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    number: text("number").notNull(),
+    label: text("label").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("ledger_accounts_number_uq").on(t.companyId, t.number),
+    check("ledger_accounts_number_ck", sql`${t.number} ~ '^[1-7][0-9]{2,7}$'`),
+  ],
+);
+
+export const journalKindEnum = pgEnum("journal_kind", ["sales", "purchases", "bank", "cash", "misc"]);
+
+export const journals = pgTable(
+  "journals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    kind: journalKindEnum("kind").notNull(),
+    bankAccountId: uuid("bank_account_id"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("journals_code_uq").on(t.companyId, t.code),
+    uniqueIndex("journals_bank_account_uq").on(t.bankAccountId),
+    foreignKey({
+      name: "journals_bank_account_company_fk",
+      columns: [t.bankAccountId, t.companyId],
+      foreignColumns: [bankAccounts.id, bankAccounts.companyId],
+    }).onDelete("restrict"),
+  ],
+);
+
+/**
+ * Écritures comptables : générées automatiquement, validées dès leur création (pas de
+ * brouillard), en ajout seul. `entrySeq` : numéro continu par entreprise et par exercice,
+ * tous journaux confondus (zone FEC EcritureNum).
+ */
+export const journalEntries = pgTable(
+  "journal_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    journalCode: text("journal_code").notNull(),
+    fiscalYear: integer("fiscal_year").notNull(),
+    entrySeq: integer("entry_seq").notNull(),
+    entryDate: text("entry_date").notNull(),
+    pieceRef: text("piece_ref").notNull(),
+    pieceDate: text("piece_date").notNull(),
+    label: text("label").notNull(),
+    /** Origine unique (ex. « sales:<id> », « payment:<id> ») : une écriture par événement. */
+    sourceKey: text("source_key").notNull(),
+    validatedAt: timestamp("validated_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("journal_entries_id_company_uq").on(t.id, t.companyId),
+    uniqueIndex("journal_entries_seq_uq").on(t.companyId, t.fiscalYear, t.entrySeq),
+    uniqueIndex("journal_entries_source_uq").on(t.companyId, t.sourceKey),
+    index("journal_entries_date_idx").on(t.companyId, t.entryDate),
+    foreignKey({
+      name: "journal_entries_journal_fk",
+      columns: [t.companyId, t.journalCode],
+      foreignColumns: [journals.companyId, journals.code],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const journalLines = pgTable(
+  "journal_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    entryId: uuid("entry_id").notNull(),
+    lineNo: integer("line_no").notNull(),
+    accountNumber: text("account_number").notNull(),
+    auxNumber: text("aux_number"),
+    auxLabel: text("aux_label"),
+    label: text("label").notNull(),
+    debit: numeric("debit", { precision: 15, scale: 2 }).notNull().default("0"),
+    credit: numeric("credit", { precision: 15, scale: 2 }).notNull().default("0"),
+  },
+  (t) => [
+    uniqueIndex("journal_lines_no_uq").on(t.entryId, t.lineNo),
+    index("journal_lines_account_idx").on(t.companyId, t.accountNumber),
+    foreignKey({
+      name: "journal_lines_entry_company_fk",
+      columns: [t.entryId, t.companyId],
+      foreignColumns: [journalEntries.id, journalEntries.companyId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "journal_lines_account_fk",
+      columns: [t.companyId, t.accountNumber],
+      foreignColumns: [ledgerAccounts.companyId, ledgerAccounts.number],
+    }).onDelete("restrict"),
+    check("journal_lines_amounts_ck", sql`${t.debit} >= 0 and ${t.credit} >= 0 and (${t.debit} = 0) <> (${t.credit} = 0)`),
+  ],
+);
+
 // ─── Idempotence des opérations financières ─────────────────────────────────
 
 export const idempotencyKeys = pgTable(
@@ -774,3 +881,5 @@ export type BankTransaction = typeof bankTransactions.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;
 export type ExpenseLine = typeof expenseLines.$inferSelect;
 export type ExpensePayment = typeof expensePayments.$inferSelect;
+export type JournalEntry = typeof journalEntries.$inferSelect;
+export type JournalLine = typeof journalLines.$inferSelect;

@@ -78,12 +78,15 @@ Légende du statut : ✅ implémenté et testé · 🟡 partiellement · ⬜ à 
 | **Statut** | 🟡 |
 | **Limites** | Art. L. 123-22 non relu pour cette version ❓. |
 
-## R6 — Fichier des écritures comptables (FEC)
+## R6 — Fichier des écritures comptables (FEC) et intangibilité des écritures
 
 | | |
 |---|---|
-| **Source** | LPF art. L. 47 A ; arrêté du 29/07/2013 (format) ; BOI-CF-IOR-60-40 |
-| **Statut** | ⬜ Module comptabilité non commencé. Textes **non encore relus** pour cette version ❓. |
+| **Source** | LPF art. L. 47 A-I et A. 47 A-1 (Légifrance LEGIARTI000027804775, en vigueur depuis le 02/08/2013) ; BOFiP BOI-CF-IOR-60-40-20-20170607. Lus le 21/10/2026. |
+| **Exigence** | 18 zones dans l'ordre réglementaire ; séparateur tabulation ou « \| » ; dates AAAAMMJJ ; virgule décimale sans séparateur de milliers ; jeux de caractères ASCII, ISO 8859-15 ou UTF-8 ; nom `SirenFECAAAAMMJJ` (date de clôture) ; écritures classées par ordre chronologique de validation ; numérotation continue (unique sur le fichier ou par journal, à documenter) ; descriptif du fichier obligatoire. |
+| **Fonctions** | Écritures générées automatiquement et validées dès leur création (pas de brouillard), en ajout seul, équilibre contrôlé par la base ; numéro d'écriture unique et continu par exercice ; export FEC conforme au format ci-dessus (✅ itération 6) ; descriptif : `docs/13-fec-descriptif.md`. |
+| **Tests** | `tests/integration/accounting.test.ts` (format, nom, 18 zones, dates, montants, ordre, équilibre, continuité, droits). |
+| **Limites** | Lettrage, à-nouveaux, écritures d'inventaire et clôture d'exercice non gérés : à compléter par l'expert-comptable. Les zones « à blanc » (EcritureLet, DateLet, Montantdevise, Idevise) restent vides. Le BOFiP n'a été lu intégralement que pour sa première moitié ❓. Le fichier n'a pas encore été soumis à l'outil de test de l'administration (« Test Compta Demat ») ❓. |
 
 ## R7 — RGPD et sécurité des données
 

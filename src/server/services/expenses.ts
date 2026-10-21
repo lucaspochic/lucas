@@ -13,6 +13,7 @@ import { allocateDocumentNumber } from "./sequences";
 import { likePattern, PAGE_SIZE, type ListParams } from "./listing";
 import { isUuid } from "./third-parties";
 import { resolveTreasuryAccount } from "./treasury";
+import { postExpense, postExpensePayment } from "./accounting";
 import { EXPENSE_CATEGORIES, expensePaymentSchema, expenseSchema, reversalSchema, type ExpenseData } from "@/lib/schemas";
 
 /**
@@ -175,6 +176,11 @@ export async function validateExpense(db: Db, ctx: CompanyContext, id: string, o
       })
       .where(scoped(ctx, id))
       .returning();
+    await postExpense(tx, company!, {
+      expense: validated!,
+      lines: await tx.select().from(expenseLines).where(eq(expenseLines.expenseId, id)).orderBy(asc(expenseLines.position)),
+      supplier: await assertSupplierRow(tx, ctx, id),
+    });
     await appendAuditEvent(tx, {
       companyId: ctx.companyId,
       actorUserId: ctx.userId,
@@ -250,6 +256,7 @@ export async function payExpense(db: Db, ctx: CompanyContext, expenseId: string,
       .update(expenses)
       .set({ amountPaid: sql`${expenses.amountPaid} + ${payment!.amount}::numeric`, updatedAt: new Date() })
       .where(scoped(ctx, expenseId));
+    await postExpensePayment(tx, company!, { payment: payment!, expense, supplier: await assertSupplierRow(tx, ctx, expenseId) });
     await appendAuditEvent(tx, {
       companyId: ctx.companyId,
       actorUserId: ctx.userId,
@@ -311,6 +318,7 @@ export async function reverseExpensePayment(db: Db, ctx: CompanyContext, payment
       .update(expenses)
       .set({ amountPaid: sql`${expenses.amountPaid} + ${reversal!.amount}::numeric`, updatedAt: new Date() })
       .where(scoped(ctx, original.expenseId));
+    await postExpensePayment(tx, company!, { payment: reversal!, expense: (await tx.select().from(expenses).where(scoped(ctx, original.expenseId)))[0]!, supplier: await assertSupplierRow(tx, ctx, original.expenseId) });
     await appendAuditEvent(tx, {
       companyId: ctx.companyId,
       actorUserId: ctx.userId,
@@ -396,4 +404,15 @@ export async function expensesTotal(db: Executor, ctx: CompanyContext, from: str
     .from(expenses)
     .where(and(eq(expenses.companyId, ctx.companyId), eq(expenses.status, "validated"), sql`${expenses.invoiceDate} between ${from} and ${to}`));
   return dec(r!.ht).toFixed(2);
+}
+
+/** Fournisseur d'une dépense (pour la comptabilisation). */
+async function assertSupplierRow(tx: Executor, ctx: CompanyContext, expenseId: string) {
+  const [row] = await tx
+    .select({ party: thirdParties })
+    .from(expenses)
+    .innerJoin(thirdParties, and(eq(thirdParties.id, expenses.thirdPartyId), eq(thirdParties.companyId, expenses.companyId)))
+    .where(scoped(ctx, expenseId))
+    .limit(1);
+  return row!.party;
 }

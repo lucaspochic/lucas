@@ -80,3 +80,12 @@ Lecture : `listPayments`, `getPayment`, `paymentsForInvoice`, `invoiceBalances` 
 | `createBankAccountAction`, `setDefaultBankAccountAction` | `treasury.write` | Comptes 512xxx / 530xxx | `bank_account.*` |
 | `importStatementAction(compte, csv)` | `treasury.write` | Import tout-ou-rien, dédoublonné par empreinte | `bank_statement.imported` |
 | `reconcileAction`, `unreconcileAction` | `treasury.write` | Rapprochement ligne de relevé ↔ règlement | `bank_transaction.*` |
+
+## Itération 6 (comptabilité)
+
+| Service / route | Permission | Effet |
+|---|---|---|
+| Comptabilisation automatique (`postSalesDocument`, `postCustomerPayment`, `postExpense`, `postExpensePayment`) | — (interne, dans la transaction de l'événement) | Écriture validée, équilibrée, numérotée ; idempotente par origine |
+| `listEntries`, `trialBalance`, `generalLedger`, `agedBalances`, `checkLedger` | `accounting.read` | Journal, balance, grand livre, échéancier, contrôles |
+| `GET /api/exports/fec?exercice=AAAA` | `exports.run` | FEC de l'exercice (tracé : `accounting.fec_exported`) |
+| `npm run accounting:backfill` | administration technique | Reprise idempotente des opérations antérieures |

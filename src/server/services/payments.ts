@@ -20,6 +20,7 @@ import { allocateDocumentNumber } from "./sequences";
 import { likePattern, PAGE_SIZE, type ListParams } from "./listing";
 import { isUuid } from "./third-parties";
 import { resolveTreasuryAccount } from "./treasury";
+import { loadCompany, postCustomerPayment } from "./accounting";
 import { paymentSchema, reversalSchema, type PaymentData } from "@/lib/schemas";
 
 /**
@@ -325,6 +326,11 @@ export async function recordPayment(db: Db, ctx: CompanyContext, raw: unknown, o
       data.allocations.map((a) => ({ documentId: a.documentId, amount: signed(a.amount) })),
       now,
     );
+    await postCustomerPayment(tx, await loadCompany(tx, ctx.companyId), {
+      payment,
+      allocations: data.allocations.map((a) => ({ documentId: a.documentId, amount: signed(a.amount) })),
+      party,
+    });
     await appendAuditEvent(tx, {
       companyId: ctx.companyId,
       actorUserId: ctx.userId,
@@ -392,6 +398,11 @@ export async function reversePayment(db: Db, ctx: CompanyContext, paymentId: str
       allocations.map((a) => ({ documentId: a.documentId, amount: neg(a.amount) })),
       now,
     );
+    await postCustomerPayment(tx, await loadCompany(tx, ctx.companyId), {
+      payment: reversal,
+      allocations: allocations.map((a) => ({ documentId: a.documentId, amount: neg(a.amount) })),
+      party: (await tx.select().from(thirdParties).where(eq(thirdParties.id, original.thirdPartyId)))[0]!,
+    });
     await appendAuditEvent(tx, {
       companyId: ctx.companyId,
       actorUserId: ctx.userId,

@@ -64,6 +64,20 @@
       "when": 1792568496433,
       "tag": "0008_treasury_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792570600453,
+      "tag": "0009_accounting",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792570618184,
+      "tag": "0010_accounting_guards",
+      "breakpoints": true
     }
   ]
 }

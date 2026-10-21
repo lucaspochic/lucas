@@ -28,6 +28,7 @@ import {
 } from "../domain/sales";
 import { appendAuditEvent } from "./audit";
 import { allocateDocumentNumber } from "./sequences";
+import { postSalesDocument } from "./accounting";
 import { likePattern, PAGE_SIZE, type ListParams } from "./listing";
 import { isUuid } from "./third-parties";
 import { salesDraftSchema, type SalesDraftData } from "@/lib/schemas";
@@ -503,6 +504,7 @@ export async function issueDocument(db: Db, ctx: CompanyContext, id: string, opt
       .set({ status: "issued", number, contentHash, issuedAt: new Date(), issuedBy: ctx.userId, updatedAt: new Date() })
       .where(scoped(ctx, id))
       .returning();
+    await postSalesDocument(tx, company!, { doc: issued!, lines: finalLines, party: party!, sourceNumber });
     await appendAuditEvent(tx, {
       companyId: ctx.companyId,
       actorUserId: ctx.userId,

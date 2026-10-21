@@ -50,6 +50,7 @@ const ACTION_LABELS: Record<string, string> = {
   "bank_statement.imported": "Import de relevé bancaire",
   "bank_transaction.reconciled": "Rapprochement bancaire",
   "bank_transaction.unreconciled": "Annulation de rapprochement",
+  "accounting.fec_exported": "Export du FEC",
 };
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {

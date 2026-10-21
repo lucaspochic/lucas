@@ -2,7 +2,7 @@
 
 Application web pour TPE, PME, indépendants et commerçants français : entreprises, tiers, catalogue, devis, factures, règlements, trésorerie, comptabilité et caisse.
 
-> **État : itération 5.** Livré : authentification, entreprises multi-sociétés, rôles, paramètres légaux et fiscaux, journal d'audit inaltérable chaîné, numérotation continue, moteur de calcul HT/TVA/TTC, clients et fournisseurs (contacts, archivage), catalogue de produits et services, import/export CSV contrôlé, devis, factures et avoirs (émission numérotée, documents figés, impression / PDF), règlements (encaissements, remboursements, contre-passations ; en ajout seul, chaînés, protégés contre les doubles envois). tableau de bord sur données réelles, dépenses fournisseurs, trésorerie (comptes, import de relevés, rapprochement, prévision). Prochaine étape : comptabilité et export FEC — voir `docs/00-diagnostic.md`.
+> **État : itération 6.** Livré : authentification, entreprises multi-sociétés, rôles, paramètres légaux et fiscaux, journal d'audit inaltérable chaîné, numérotation continue, moteur de calcul HT/TVA/TTC, clients et fournisseurs (contacts, archivage), catalogue de produits et services, import/export CSV contrôlé, devis, factures et avoirs (émission numérotée, documents figés, impression / PDF), règlements (encaissements, remboursements, contre-passations ; en ajout seul, chaînés, protégés contre les doubles envois). tableau de bord sur données réelles, dépenses fournisseurs, trésorerie (comptes, import de relevés, rapprochement, prévision). comptabilité automatique (journaux, grand livre, balance, échéancier, export FEC). Prochaine étape : module caisse (clôtures, archives) puis facturation électronique — voir `docs/00-diagnostic.md`.
 >
 > **Conformité :** aucune certification NF525 / LNE n'est obtenue ni revendiquée. Voir `docs/05-registre-reglementaire.md` et `docs/06-conformite-caisse-nf525.md`.
 
@@ -42,6 +42,7 @@ npm run db:seed-demo          # identifiants écrits dans .data/demo-credentials
 | `npm run db:generate` | Génère une migration SQL après modification de `src/server/db/schema.ts` |
 | `npm run db:migrate` | Applique les migrations sur `DATABASE_URL` |
 | `npm run audit:verify` | Contrôle d'intégrité complet : journaux d'audit, chaîne des règlements, empreintes des documents émis (code 2 si altération) |
+| `npm run accounting:backfill` | Comptabilise les opérations antérieures au module comptable (idempotent) |
 | `npm run user:create -- e-mail "Nom"` | Crée un compte (premier compte d'une installation sans inscription libre) ; mot de passe aléatoire affiché une fois |
 | `npm run user:reset-password -- e-mail` | Réinitialise le mot de passe d'un utilisateur (mot de passe aléatoire affiché une fois, sessions fermées, audit) |
 | `TEST_POSTGRES_URL=postgres://… npm test` | Exécute les tests sur un PostgreSQL serveur (base jetable par fichier de test) |

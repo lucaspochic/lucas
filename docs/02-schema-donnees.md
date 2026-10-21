@@ -21,6 +21,8 @@ Source de vérité : `src/server/db/schema.ts`. Migrations : `drizzle/`.
 | `sales_documents` | Devis, factures, avoirs | statut brouillon → émis (→ accepté / refusé pour un devis) ; numéro attribué à l'émission seulement, UNIQUE (entreprise, numéro) ; copies figées vendeur / client (jsonb) ; empreinte SHA-256 ; **trigger : document émis non modifiable ni supprimable**, seules les colonnes de suivi (statut de devis, montant réglé) évoluent ; CHECK de cohérence (numéro ⇔ émis, avoir ⇒ facture d'origine) |
 | `sales_document_lines` | Lignes | quantité numeric(15,3), PU HT numeric(15,4), taux et motif d'exonération copiés ; clés composites (document, entreprise) et (article, entreprise) ; **figées dès l'émission** |
 | `sales_document_vat` | Ventilation de TVA par taux | recalculée par le serveur ; figée à l'émission |
+| `ledger_accounts`, `journals` | Plan de comptes (PCG) et journaux (VE, AC, OD, BQn, CAn) | plan par défaut créé avec l'entreprise ; un journal par compte de trésorerie |
+| `journal_entries`, `journal_lines` | Écritures comptables | numéro continu par exercice ; origine unique (idempotence) ; **ajout seul** ; **équilibre Σ débit = Σ crédit contrôlé par trigger de contrainte différé** ; débit ou crédit (jamais les deux) |
 
 ## Tables planifiées
 
@@ -31,7 +33,7 @@ Source de vérité : `src/server/db/schema.ts`. Migrations : `drizzle/`.
 | Ventes | factures d'acompte et déduction des acomptes (à venir) |
 | Règlements | `payments` (append-only, idempotents), `payment_allocations` (lettrage paiement ↔ facture), `refunds` |
 | Trésorerie | `bank_accounts`, `bank_transactions` (import relevés, empreinte d'import anti-doublon), `reconciliations`, `expenses` |
-| Comptabilité | `accounts` (plan comptable), `journals`, `journal_entries` + `journal_entry_lines` (CHECK débit = crédit, verrouillage à la validation), `fiscal_years` (clôture), `lettering` |
+| Comptabilité | `fiscal_years` (clôture), lettrage |
 | Caisse | `cash_registers`, `cash_sessions`, `cash_tickets` (+ lignes, paiements ; chaînés), `cash_closures` (J/M/A, totaux perpétuels, signature), `archives` |
 
 ## Principes

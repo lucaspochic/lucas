@@ -5,6 +5,7 @@ import { AppError, forbidden, notFound } from "../errors";
 import { assertPermission, type CompanyContext } from "../security/permissions";
 import { appendAuditEvent } from "./audit";
 import { createDefaultTreasuryAccounts } from "./treasury";
+import { seedChartOfAccounts } from "./accounting";
 import { todayInParis } from "../domain/numbering";
 import { addMemberSchema, companySchema, createCompanySchema } from "@/lib/schemas";
 
@@ -62,6 +63,7 @@ export async function createCompany(db: Db, userId: string, raw: unknown, opts: 
     const rates = input.vatRegime === "franchise_en_base" ? [FRANCHISE_RATE] : DEFAULT_VAT_RATES;
     await tx.insert(vatRates).values(rates.map((r) => ({ ...r, companyId: company!.id })));
     await createDefaultTreasuryAccounts(tx, company!.id, todayInParis());
+    await seedChartOfAccounts(tx, company!.id);
     await appendAuditEvent(tx, {
       companyId: company!.id,
       actorUserId: userId,
