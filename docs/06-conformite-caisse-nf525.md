@@ -62,3 +62,18 @@ Conséquence de conception : **toute** fonction qui mémorise un paiement de non
 - **« ISCA » = Inaltérabilité, Sécurisation, Conservation, Archivage** (confirmé).
 - Conséquence déjà implémentée : chaque tiers porte un type (particulier / professionnel / organisme public), qui permettra de déterminer les règlements soumis à ces obligations.
 - Reste à décider : certification par un organisme accrédité **ou** attestation individuelle de l'éditeur.
+
+## 7. Attestation individuelle de l'éditeur — état du droit vérifié le 21/10/2026
+
+Source : BOFiP BOI-TVA-DECLA-30-10-30-20260325 (en vigueur depuis le 25/03/2026), §270 à §420.
+
+- **Mode de preuve alternatif au certificat** (§270) : certificat d'un organisme accrédité **ou** attestation individuelle de l'éditeur, rétablie à compter du 21/02/2026 par l'article 125 de la loi n° 2026-103 du 19/02/2026 de finances pour 2026. Un seul des deux suffit ; ce n'est pas un régime transitoire.
+- **Délivrée par l'éditeur** (§300, §365) : la personne qui détient le code source et maîtrise les paramètres ; signée par son représentant légal (§370).
+- **Nominative**, à chaque client assujetti (§370) ; une mention dans les CGV ne vaut pas attestation. Document pré-rempli remis à l'achat admis, complété par le client.
+- **Contenu obligatoire** (§375) : mention explicite du respect des quatre conditions ; nom, références et version du logiciel (n° de licence s'il existe) ; date d'acquisition. **Conforme au modèle BOI-LETTRE-000242** (§390) — modèle non encore lu ❓.
+- **Par version majeure** (§380) : nouvelle attestation à chaque version majeure (version modifiant un paramètre qui touche aux quatre conditions, §340). Politique de versionnement à définir.
+- **Auto-attestation exclue** (§375) sauf activité réelle d'édition de logiciels ; un logiciel développé pour ses propres besoins exige un certificat.
+- **Responsabilité** (§300) : l'attestation engage l'éditeur. **Faux document** (§400) : art. 441-1 du code pénal, 3 ans d'emprisonnement et 45 000 € d'amende, y compris pour l'assujetti qui présente sciemment une fausse attestation. Défaut de justification : amende de l'art. 1770 duodecies CGI (§420 ; montant non vérifié ❓).
+- **Certification en cours** : le texte ne prévoit rien de particulier.
+
+**Conséquence pour ce logiciel** : une attestation ne pourra être délivrée qu'une fois les quatre conditions effectivement remplies (module caisse : clôtures, totaux perpétuels, archivage — non encore réalisés) et le dossier de preuves constitué. La délivrer avant serait une attestation inexacte.

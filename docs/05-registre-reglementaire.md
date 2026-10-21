@@ -12,7 +12,7 @@ Légende du statut : ✅ implémenté et testé · 🟡 partiellement · ⬜ à 
 | | |
 |---|---|
 | **Source** | CGI, art. 286, I, 3° bis ; BOFiP **BOI-TVA-DECLA-30-10-30** ; page impots.gouv « Quel est le champ d'application de l'obligation de détenir un logiciel de caisse… » |
-| **Version** | BOFiP lu : version **20251001** (en vigueur du 01/10/2025 au 25/03/2026). La version en vigueur est **BOI-TVA-DECLA-30-10-30-20260325** : **pas encore lue** ❓. Page impots.gouv : modifiée le 14/10/2026. |
+| **Version** | BOFiP lu : version **20251001**, puis la version en vigueur **BOI-TVA-DECLA-30-10-30-20260325** (§270 à 420 lus le 21/10/2026 : modes de preuve et attestation de l'éditeur, voir docs/06 §7). Page impots.gouv modifiée le 14/10/2026. |
 | **Exigence** | Tout assujetti à la TVA qui enregistre les règlements de clients **particuliers** au moyen d'un logiciel doit utiliser un logiciel satisfaisant à des conditions d'**I**naltérabilité, de **S**écurisation, de **C**onservation et d'**A**rchivage. Un logiciel de facturation ou de gestion qui mémorise extra-comptablement les paiements de non-assujettis est concerné **pour cette fonctionnalité** (BOFiP §30-40). |
 | **Exemptions** | Franchise en base (art. 293 B CGI), remboursement forfaitaire agricole, opérations exclusivement exonérées, assujettis dont **tous** les paiements passent par intermédiation bancaire (tolérance §35), clientèle exclusivement professionnelle. |
 | **Fonctions concernées** | Encaissements (module Paiements) et module Caisse. Le paramétrage du régime (franchise en base) est déjà présent. |
