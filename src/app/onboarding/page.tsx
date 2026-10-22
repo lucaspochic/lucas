@@ -18,7 +18,7 @@ export default async function OnboardingPage() {
       <div className="mb-8">
         <Logo />
       </div>
-      <Card className="w-full max-w-md p-6">
+      <Card className="w-full max-w-lg p-6">
         <h1 className="text-lg font-semibold">{companies.length ? "Ajouter une entreprise" : "Votre entreprise"}</h1>
         <p className="mt-1 text-sm text-foreground-muted">
           Quelques informations pour démarrer. Vous compléterez les mentions légales ensuite.

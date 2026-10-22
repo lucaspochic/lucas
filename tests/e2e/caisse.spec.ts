@@ -10,8 +10,14 @@ test("caisse : vente, fermeture de session, clôture du jour, intégrité", asyn
   await page.getByLabel("Mot de passe").fill(`Essai-${Math.random().toString(36).slice(2)}-caisse`);
   await page.getByRole("button", { name: "Créer mon compte" }).click();
   await page.getByLabel("Raison sociale").fill("Boulangerie E2E");
+  await page.getByRole("checkbox", { name: /Restauration, métiers de bouche/ }).check();
   await page.getByRole("button", { name: "Créer l'entreprise" }).click();
   await expect(page).toHaveURL(/\/parametres\/entreprise/);
+
+  // Métier de bouche : la caisse passe en tête du menu, juste après le tableau de bord.
+  const items = (await page.getByRole("navigation", { name: "Navigation principale" }).getByRole("link").allInnerTexts()).map((l) => l.trim());
+  expect(items.slice(0, 2)).toEqual(["Tableau de bord", "Caisse"]);
+  expect(items).not.toContain("Parc matériel");
 
   // Création de la caisse et ouverture avec un fond de 50 €.
   await page.goto("/caisse");

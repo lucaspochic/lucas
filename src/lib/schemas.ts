@@ -9,6 +9,7 @@ import {
   normalizeDigits,
 } from "@/server/domain/identifiers";
 import { isValidPrefix } from "@/server/domain/numbering";
+import { ACTIVITIES, normalizeList, OPTIONAL_MODULES } from "./activities";
 
 /**
  * Schémas de validation partagés client / serveur.
@@ -57,6 +58,17 @@ const sirenField = optionalText(20).refine((v) => !v || isValidSiren(v), "SIREN 
   .transform((v) => (v ? normalizeDigits(v) : v));
 const siretField = optionalText(20).refine((v) => !v || isValidSiret(v), "SIRET invalide (14 chiffres, clé de contrôle).")
   .transform((v) => (v ? normalizeDigits(v) : v));
+
+/**
+ * Cases à cocher multiples : React Hook Form renvoie un tableau, mais `false` (aucune case)
+ * ou une chaîne (une seule case) selon les cas ; on ramène tout à un tableau trié et dédoublonné.
+ */
+const checkboxList = <T extends string>(allowed: readonly [T, ...T[]]) =>
+  z
+    .preprocess((v) => (Array.isArray(v) ? v : typeof v === "string" && v ? [v] : []), z.array(z.enum(allowed)).max(allowed.length))
+    .transform((v) => normalizeList(v, allowed));
+const activitiesField = checkboxList(ACTIVITIES);
+const modulesField = checkboxList(OPTIONAL_MODULES);
 
 export const VAT_REGIMES = ["reel_normal", "reel_simplifie", "mini_reel", "franchise_en_base"] as const;
 export const VAT_REGIME_LABELS: Record<(typeof VAT_REGIMES)[number], string> = {
@@ -108,6 +120,8 @@ export const companySchema = z
     invoicePrefix: z.string().trim().toUpperCase().refine(isValidPrefix, "1 à 6 lettres ou chiffres."),
     creditNotePrefix: z.string().trim().toUpperCase().refine(isValidPrefix, "1 à 6 lettres ou chiffres."),
     quotePrefix: z.string().trim().toUpperCase().refine(isValidPrefix, "1 à 6 lettres ou chiffres."),
+    activities: activitiesField,
+    modules: modulesField,
   })
   .superRefine((v, ctx) => {
     if (v.siren && v.siret && !v.siret.startsWith(v.siren)) {
@@ -128,6 +142,7 @@ export const createCompanySchema = z.object({
   legalName: z.string().trim().min(2, "Raison sociale requise.").max(200),
   siren: sirenField,
   vatRegime: z.enum(VAT_REGIMES).default("reel_normal"),
+  activities: activitiesField,
 });
 
 // ─── Tiers ──────────────────────────────────────────────────────────────────
@@ -519,3 +534,75 @@ export const reminderSchema = z.object({
   channel: z.enum(REMINDER_CHANNELS),
   recipient: optionalText(200),
 });
+
+// ─── Parc matériel ──────────────────────────────────────────────────────────
+
+export const EQUIPMENT_CATEGORIES = ["vehicle", "agricultural", "construction", "other"] as const;
+export const EQUIPMENT_CATEGORY_LABELS: Record<(typeof EQUIPMENT_CATEGORIES)[number], string> = {
+  vehicle: "Véhicule",
+  agricultural: "Matériel agricole",
+  construction: "Engin de TP ou industriel",
+  other: "Autre matériel",
+};
+export const METER_UNITS = ["km", "h"] as const;
+export const METER_UNIT_LABELS: Record<(typeof METER_UNITS)[number], string> = { km: "kilomètres", h: "heures" };
+
+/** VIN (ISO 3779) : 17 caractères, sans I, O ni Q. */
+export const isPlausibleVin = (v: string) => /^[A-HJ-NPR-Z0-9]{17}$/.test(v);
+
+/** Immatriculation : majuscules ; format SIV (AA-123-AA) remis en forme, autres formats conservés. */
+export function normalizeRegistration(v: string): string {
+  const compact = v.toUpperCase().replace(/[\s-]/g, "");
+  const siv = /^([A-Z]{2})(\d{3})([A-Z]{2})$/.exec(compact);
+  return siv ? `${siv[1]}-${siv[2]}-${siv[3]}` : compact;
+}
+
+const optionalDate = z
+  .union([z.literal(""), isoDate])
+  .transform((v) => (v === "" ? null : v))
+  .nullable()
+  .optional();
+const optionalInt = (label: string, min: number, max: number) =>
+  z
+    .union([z.literal(""), z.coerce.number().int(`${label} : nombre entier.`).min(min, `${label} : ${min} au minimum.`).max(max, `${label} : ${max} au maximum.`)])
+    .transform((v) => (v === "" ? null : v))
+    .nullable()
+    .optional();
+
+export const equipmentSchema = z
+  .object({
+    thirdPartyId: z.uuid("Client requis."),
+    category: z.enum(EQUIPMENT_CATEGORIES),
+    brand: z.string().trim().min(1, "Marque requise.").max(80),
+    model: z.string().trim().min(1, "Modèle requis.").max(120),
+    serialNumber: optionalText(40).transform((v) => (v ? v.replace(/\s/g, "").toUpperCase() : v)),
+    registration: optionalText(20).transform((v) => (v ? normalizeRegistration(v) : v)),
+    year: optionalInt("Année", 1900, 2100),
+    meterValue: optionalInt("Compteur", 0, 99_999_999),
+    meterUnit: z
+      .union([z.literal(""), z.enum(METER_UNITS)])
+      .transform((v) => (v === "" ? null : v))
+      .nullable()
+      .optional(),
+    soldOn: optionalDate,
+    salesDocumentId: z
+      .union([z.literal(""), z.uuid()])
+      .transform((v) => (v === "" ? null : v))
+      .nullable()
+      .optional(),
+    warrantyEndsOn: optionalDate,
+    notes: optionalText(2000),
+  })
+  .superRefine((v, ctx) => {
+    if (v.category === "vehicle" && v.serialNumber && v.serialNumber.length === 17 && !isPlausibleVin(v.serialNumber)) {
+      ctx.addIssue({ code: "custom", path: ["serialNumber"], message: "VIN invalide : lettres I, O et Q exclues." });
+    }
+    if ((v.meterValue ?? null) !== null && !v.meterUnit) {
+      ctx.addIssue({ code: "custom", path: ["meterUnit"], message: "Précisez l'unité du compteur." });
+    }
+    if (v.soldOn && v.warrantyEndsOn && v.warrantyEndsOn < v.soldOn) {
+      ctx.addIssue({ code: "custom", path: ["warrantyEndsOn"], message: "La garantie ne peut pas finir avant la vente." });
+    }
+  });
+export type EquipmentInput = z.input<typeof equipmentSchema>;
+export type EquipmentData = z.output<typeof equipmentSchema>;

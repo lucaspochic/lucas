@@ -33,13 +33,14 @@ Source de vérité : `src/server/db/schema.ts`. Migrations : `drizzle/`.
 | `cash_tickets`, `cash_ticket_lines`, `cash_ticket_payments` | Tickets de caisse | rang continu par caisse, numéro `CODE-000001` ; vente ou remboursement lié (CHECK de signe, motif obligatoire) ; mode école ; empreinte chaînée par caisse ; **ajout seul** (UPDATE / DELETE / TRUNCATE refusés) |
 | `cash_closures` | Clôtures J / M / A | unique (caisse, type, début) et (caisse, rang) ; totaux, grand total, total perpétuel, cumul des valeurs absolues, ventilations TVA et paiements (jsonb) ; empreinte chaînée, signature Ed25519 et identifiant de clé ; **ajout seul** |
 | `cash_archives` | Archives produites | période, nom de fichier, SHA-256 du ZIP, signature du manifeste ; **ajout seul** |
+| `companies.activities`, `companies.modules` | Domaines d’activité et modules complémentaires | tableaux de texte limités par CHECK aux valeurs de `src/lib/activities.ts` ; les entreprises antérieures gardent la caisse (migration 0020) |
+| `equipment` | Parc matériel | client propriétaire et facture de vente en clés composites (même entreprise) ; n° de série unique par entreprise sans tenir compte de la casse (index partiel) ; compteur et unité ensemble (CHECK) ; dates AAAA-MM-JJ ; archivage, pas de suppression ; historique par le journal d’audit |
 
 ## Tables planifiées
 
 | Module | Tables |
 |---|---|
 | Catalogue | `stock_movements` (si le module de stock est activé) |
-| Ventes | factures d'acompte et déduction des acomptes, relances |
 | Caisse | conservation des clés publiques successives (rotation) |
 
 ## Principes

@@ -12,6 +12,8 @@ import { formatDateTime } from "@/lib/utils";
 import { ThirdPartyForm } from "../third-party-form";
 import { ArchiveThirdPartyButton, ContactsPanel } from "./third-party-client";
 import { AttachmentsPanel } from "@/components/attachments/attachments-panel";
+import { listEquipmentOfParty } from "@/server/services/equipment";
+import { EquipmentPanel } from "./equipment-panel";
 
 export const metadata: Metadata = { title: "Fiche tiers" };
 
@@ -26,13 +28,16 @@ export default async function ThirdPartyPage({
   const created = (await searchParams).cree === "1";
   const { ctx } = await requireCompanyContext();
   const db = await getDb();
-  const [party, contacts, company] = await Promise.all([
+  const [party, contacts, company, parc] = await Promise.all([
     orNotFound(getThirdParty(db, ctx, id)),
     listContacts(db, ctx, id),
     getCompany(db, ctx),
+    listEquipmentOfParty(db, ctx, id),
   ]);
   const canWrite = can(ctx, "thirdparties.write");
   const archived = !!party.archivedAt;
+  // Parc affiché si le module est actif, ou si le client détient déjà des matériels.
+  const showParc = party.isCustomer && (company.modules.includes("parc") || parc.length > 0);
 
   return (
     <>
@@ -111,6 +116,7 @@ export default async function ThirdPartyPage({
               />
             </CardBody>
           </Card>
+          {showParc && <EquipmentPanel thirdPartyId={party.id} rows={parc} canWrite={canWrite && !archived} />}
           <AttachmentsPanel ctx={ctx} entityType="third_party" entityId={party.id} path={`/tiers/${party.id}`} />
         </div>
       </div>

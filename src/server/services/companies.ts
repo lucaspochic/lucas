@@ -8,6 +8,7 @@ import { createDefaultTreasuryAccounts } from "./treasury";
 import { seedChartOfAccounts } from "./accounting";
 import { todayInParis } from "../domain/numbering";
 import { addMemberSchema, companySchema, createCompanySchema } from "@/lib/schemas";
+import { suggestedModules } from "@/lib/activities";
 
 /**
  * Entreprises, adhésions et contexte d'entreprise.
@@ -57,7 +58,14 @@ export async function createCompany(db: Db, userId: string, raw: unknown, opts: 
   return db.transaction(async (tx) => {
     const [company] = await tx
       .insert(companies)
-      .values({ legalName: input.legalName, siren: input.siren ?? null, vatRegime: input.vatRegime, isDemo: opts.isDemo ?? false })
+      .values({
+        legalName: input.legalName,
+        siren: input.siren ?? null,
+        vatRegime: input.vatRegime,
+        activities: input.activities,
+        modules: suggestedModules(input.activities),
+        isDemo: opts.isDemo ?? false,
+      })
       .returning();
     await tx.insert(memberships).values({ userId, companyId: company!.id, role: "owner" });
     const rates = input.vatRegime === "franchise_en_base" ? [FRANCHISE_RATE] : DEFAULT_VAT_RATES;
@@ -70,7 +78,7 @@ export async function createCompany(db: Db, userId: string, raw: unknown, opts: 
       action: "company.created",
       entityType: "company",
       entityId: company!.id,
-      payload: { legalName: company!.legalName, siren: company!.siren, vatRegime: company!.vatRegime },
+      payload: { legalName: company!.legalName, siren: company!.siren, vatRegime: company!.vatRegime, activities: company!.activities, modules: company!.modules },
     });
     return company!;
   });
@@ -87,7 +95,7 @@ const AUDITED_FIELDS = [
   "legalName", "tradeName", "legalForm", "siren", "siret", "vatNumber", "nafCode", "shareCapital", "rcsCity",
   "addressLine1", "addressLine2", "postalCode", "city", "country", "email", "phone", "website", "iban", "bic",
   "fiscalYearStartMonth", "vatRegime", "vatOnDebits", "paymentTermsDays", "latePenaltyText", "legalMentions",
-  "invoicePrefix", "creditNotePrefix", "quotePrefix",
+  "invoicePrefix", "creditNotePrefix", "quotePrefix", "activities", "modules",
 ] as const;
 
 export async function updateCompany(db: Db, ctx: CompanyContext, raw: unknown) {

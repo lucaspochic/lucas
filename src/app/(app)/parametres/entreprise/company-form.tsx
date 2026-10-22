@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useEffect, useRef, useTransition } from "react";
 import { useForm, useWatch, type FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -9,6 +9,8 @@ import { updateCompanyAction } from "@/app/actions/company";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/form-controls";
+import { ActivitiesPicker } from "@/components/activities-picker";
+import { MODULE_INFO, OPTIONAL_MODULES, suggestedModules } from "@/lib/activities";
 
 const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 const LEGAL_FORMS = ["Entreprise individuelle", "EURL", "SARL", "SAS", "SASU", "SA", "SNC", "SCI", "Association", "Autre"];
@@ -30,6 +32,21 @@ export function CompanyForm({ defaults, readOnly, vatRates }: { defaults: Compan
   const err = (name: string) => e[name]?.message;
   const vatRegime = useWatch({ control, name: "vatRegime" });
   const latePenaltyText = useWatch({ control, name: "latePenaltyText" });
+  const activities = useWatch({ control, name: "activities" });
+
+  // Cocher un domaine d’activité coche les modules qu’il propose (on peut ensuite les décocher).
+  const previousActivities = useRef(defaults.activities);
+  useEffect(() => {
+    const before = new Set(Array.isArray(previousActivities.current) ? (previousActivities.current as string[]) : []);
+    const now = Array.isArray(activities) ? (activities as string[]) : [];
+    previousActivities.current = now;
+    const added = suggestedModules(now.filter((a) => !before.has(a)));
+    if (added.length === 0) return;
+    const current = form.getValues("modules");
+    const modules = new Set(Array.isArray(current) ? (current as string[]) : []);
+    added.forEach((m) => modules.add(m));
+    setValue("modules", OPTIONAL_MODULES.filter((m) => modules.has(m)), { shouldDirty: true });
+  }, [activities, form, setValue]);
 
   const onSubmit = handleSubmit((values) =>
     startTransition(async () => {
@@ -83,6 +100,36 @@ export function CompanyForm({ defaults, readOnly, vatRates }: { defaults: Compan
             {text("siret", "SIRET du siège", { inputMode: "numeric" })}
             {text("nafCode", "Code APE / NAF", { placeholder: "6201Z" })}
             {text("rcsCity", "Ville d'immatriculation au RCS / RM", { placeholder: "RCS Lyon" })}
+          </CardBody>
+        </Card>
+
+        <Card id="activite">
+          <CardHeader
+            title="Activité et modules"
+            description="Vos domaines d’activité adaptent le menu : les modules utiles à votre métier apparaissent et passent en tête."
+          />
+          <CardBody className="space-y-5">
+            <fieldset className="space-y-2">
+              <legend className="text-[13px] font-medium">Domaines d’activité</legend>
+              <ActivitiesPicker registration={register("activities")} columns={2} initial={Array.isArray(defaults.activities) ? (defaults.activities as string[]) : []} />
+            </fieldset>
+            <fieldset className="space-y-2">
+              <legend className="text-[13px] font-medium">Modules complémentaires</legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {OPTIONAL_MODULES.map((m) => (
+                  <label key={m} className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border px-3 py-2 text-[13px] has-[:checked]:border-accent">
+                    <input type="checkbox" value={m} defaultChecked={Array.isArray(defaults.modules) && (defaults.modules as string[]).includes(m)} className="mt-0.5 size-4 shrink-0 rounded border-border accent-[var(--color-accent)]" {...register("modules")} />
+                    <span>
+                      <span className="block font-medium">{MODULE_INFO[m].label}</span>
+                      <span className="block text-xs text-foreground-muted">{MODULE_INFO[m].description}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-foreground-muted">
+                Désactiver un module le retire du menu sans rien effacer ; un module qui contient déjà des données reste affiché.
+              </p>
+            </fieldset>
           </CardBody>
         </Card>
 

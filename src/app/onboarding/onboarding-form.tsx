@@ -9,6 +9,7 @@ import { createCompanyAction } from "@/app/actions/company";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/form-controls";
 import { FormAlert } from "@/components/ui/form-alert";
+import { ActivitiesPicker } from "@/components/activities-picker";
 
 type Values = z.input<typeof createCompanySchema>;
 
@@ -18,7 +19,7 @@ export function OnboardingForm() {
   const { register, handleSubmit, formState } = useForm<Values>({
     resolver: zodResolver(createCompanySchema),
     mode: "onTouched",
-    defaultValues: { vatRegime: "reel_normal" },
+    defaultValues: { vatRegime: "reel_normal", activities: [] },
   });
   const e = formState.errors;
 
@@ -48,6 +49,11 @@ export function OnboardingForm() {
           ))}
         </Select>
       </Field>
+      <fieldset className="space-y-2">
+        <legend className="text-[13px] font-medium">Domaines d&apos;activité</legend>
+        <p className="text-xs text-foreground-muted">Plusieurs choix possibles. Le menu s&apos;adapte ; modifiable ensuite dans les paramètres.</p>
+        <ActivitiesPicker registration={register("activities")} />
+      </fieldset>
       <Button type="submit" className="w-full" loading={pending}>
         Créer l&apos;entreprise
       </Button>

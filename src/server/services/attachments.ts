@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import type { Db, Executor } from "../db/client";
-import { attachments, expenses, salesDocuments, thirdParties, type Attachment } from "../db/schema";
+import { attachments, equipment, expenses, salesDocuments, thirdParties, type Attachment } from "../db/schema";
 import { AppError, notFound } from "../errors";
 import { assertPermission, type CompanyContext, type Permission } from "../security/permissions";
 import { appendAuditEvent } from "./audit";
@@ -30,6 +30,7 @@ const ENTITY_PERMISSIONS: Record<AttachmentEntity, { read: Permission; write: Pe
   expense: { read: "purchases.read", write: "purchases.write" },
   sales_document: { read: "sales.read", write: "sales.write" },
   third_party: { read: "thirdparties.read", write: "thirdparties.write" },
+  equipment: { read: "thirdparties.read", write: "thirdparties.write" },
 };
 
 let testDir: string | undefined;
@@ -72,6 +73,11 @@ async function entityState(db: Executor, ctx: CompanyContext, type: AttachmentEn
     const [row] = await db.select({ status: salesDocuments.status }).from(salesDocuments).where(and(eq(salesDocuments.companyId, ctx.companyId), eq(salesDocuments.id, id))).limit(1);
     if (!row) throw notFound("Document introuvable.");
     return { locked: row.status !== "draft" };
+  }
+  if (type === "equipment") {
+    const [row] = await db.select({ id: equipment.id }).from(equipment).where(and(eq(equipment.companyId, ctx.companyId), eq(equipment.id, id))).limit(1);
+    if (!row) throw notFound("Matériel introuvable.");
+    return { locked: false };
   }
   const [row] = await db.select({ id: thirdParties.id }).from(thirdParties).where(and(eq(thirdParties.companyId, ctx.companyId), eq(thirdParties.id, id))).limit(1);
   if (!row) throw notFound("Tiers introuvable.");

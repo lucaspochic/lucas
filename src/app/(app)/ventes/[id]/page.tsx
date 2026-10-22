@@ -6,7 +6,8 @@ import { getDb } from "@/server/db/client";
 import { AttachmentsPanel } from "@/components/attachments/attachments-panel";
 import { orNotFound, requireCompanyContext } from "@/server/http/session";
 import { can } from "@/server/security/permissions";
-import { listVatRates } from "@/server/services/companies";
+import { getCompany, listVatRates } from "@/server/services/companies";
+import { listEquipmentOfDocument } from "@/server/services/equipment";
 import {
   getSalesDocument,
   listCustomerOptions,
@@ -142,12 +143,16 @@ export default async function SalesDocumentPage({ params }: { params: Promise<{ 
   }
 
   const isInvoice = doc.type === "invoice";
-  const [integrity, balances, invoicePayments] = await Promise.all([
+  const tracksParc = isInvoice && !doc.isDeposit && can(ctx, "thirdparties.read");
+  const [integrity, balances, invoicePayments, company, parc] = await Promise.all([
     verifyDocumentIntegrity(db, ctx, doc.id),
     isInvoice ? invoiceBalances(db, ctx, { ids: [doc.id] }) : Promise.resolve([]),
     isInvoice ? paymentsForInvoice(db, ctx, doc.id) : Promise.resolve([]),
+    getCompany(db, ctx),
+    tracksParc ? listEquipmentOfDocument(db, ctx, doc.id) : Promise.resolve([]),
   ]);
   const balance = balances[0] ?? null;
+  const showParc = tracksParc && (company.modules.includes("parc") || parc.length > 0);
   return (
     <>
       {back}
@@ -231,6 +236,36 @@ export default async function SalesDocumentPage({ params }: { params: Promise<{ 
                       </Link>
                       <span className="text-foreground-muted">{p.paymentDate.split("-").reverse().join("/")}</span>
                       <span className={`tabular ${p.amount.startsWith("-") ? "text-danger" : ""}`}>{formatEuro(p.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          )}
+          {showParc && (
+            <Card>
+              <CardHeader
+                title="Parc matériel"
+                actions={
+                  can(ctx, "thirdparties.write") ? (
+                    <Link href={`/parc/nouveau?client=${doc.thirdPartyId}&facture=${doc.id}`} className="text-[13px] font-medium text-accent hover:underline">
+                      Ajouter au parc du client
+                    </Link>
+                  ) : undefined
+                }
+              />
+              {parc.length === 0 ? (
+                <p className="px-5 py-4 text-[13px] text-foreground-muted">Aucun matériel rattaché à cette facture.</p>
+              ) : (
+                <ul className="divide-y divide-border text-[13px]">
+                  {parc.map((e) => (
+                    <li key={e.id} className="px-5 py-2.5">
+                      <Link href={`/parc/${e.id}`} className="font-medium hover:text-accent">
+                        {e.brand} {e.model}
+                      </Link>
+                      {(e.registration || e.serialNumber) && (
+                        <p className="font-mono text-xs text-foreground-muted">{[e.registration, e.serialNumber].filter(Boolean).join(" · ")}</p>
+                      )}
                     </li>
                   ))}
                 </ul>

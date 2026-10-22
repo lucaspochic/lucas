@@ -7,7 +7,7 @@ import { toActionError, type ActionResult } from "@/server/http/action-result";
 import { addAttachment, ATTACHMENT_MAX_BYTES, removeAttachment, type AttachmentEntity } from "@/server/services/attachments";
 import { AppError } from "@/server/errors";
 
-const ENTITIES: AttachmentEntity[] = ["expense", "sales_document", "third_party"];
+const ENTITIES: AttachmentEntity[] = ["expense", "sales_document", "third_party", "equipment"];
 
 /** Envoi d'une pièce jointe (FormData : entityType, entityId, path, file). */
 export async function uploadAttachmentAction(fd: FormData): Promise<ActionResult> {

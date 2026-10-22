@@ -141,6 +141,13 @@
       "when": 1792592266752,
       "tag": "0019_reminders_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792667246027,
+      "tag": "0020_activities_equipment",
+      "breakpoints": true
     }
   ]
 }

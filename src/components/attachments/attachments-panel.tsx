@@ -6,7 +6,7 @@ import { can } from "@/server/security/permissions";
 import { listAttachments, type AttachmentEntity } from "@/server/services/attachments";
 import { AttachmentUpload, RemoveAttachmentButton } from "./attachments-client";
 
-const WRITE = { expense: "purchases.write", sales_document: "sales.write", third_party: "thirdparties.write" } as const;
+const WRITE = { expense: "purchases.write", sales_document: "sales.write", third_party: "thirdparties.write", equipment: "thirdparties.write" } as const;
 
 const size = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} Ko` : `${(n / 1024 / 1024).toFixed(1).replace(".", ",")} Mo`);
 

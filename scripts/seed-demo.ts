@@ -39,6 +39,9 @@ async function main() {
       invoicePrefix: "FA",
       creditNotePrefix: "AV",
       quotePrefix: "DE",
+      // Démonstration : tous les modules complémentaires sont visibles.
+      activities: ["services"],
+      modules: ["caisse", "parc"],
     });
     mkdirSync(".data", { recursive: true });
     writeFileSync(".data/demo-credentials.txt", `Compte de démonstration\nE-mail : ${email}\nMot de passe : ${password}\n`);

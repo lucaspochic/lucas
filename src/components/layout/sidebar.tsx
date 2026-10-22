@@ -13,12 +13,14 @@ import {
   ScrollText,
   ShieldCheck,
   Store,
+  Tractor,
   Users,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "./logo";
+import type { OptionalModule } from "@/lib/activities";
 
 interface NavItem {
   href: string;
@@ -31,19 +33,36 @@ interface NavItem {
 interface NavProps {
   canSeeAudit: boolean;
   canManageMembers: boolean;
+  /** Modules optionnels affichés, et ceux que l’activité met en avant. */
+  modules: readonly OptionalModule[];
+  featured: readonly OptionalModule[];
 }
 
-function navSections({ canSeeAudit, canManageMembers }: NavProps) {
+const MODULE_ITEMS: Record<OptionalModule, NavItem> = {
+  caisse: { href: "/caisse", label: "Caisse", icon: Store },
+  parc: { href: "/parc", label: "Parc matériel", icon: Tractor },
+};
+
+/**
+ * Agencement selon l’activité : un module mis en avant prend place près de ce qu’il sert
+ * (la caisse en tête pour un commerce, le parc à côté des clients pour un vendeur de matériel) ;
+ * les autres modules actifs se rangent en fin de menu.
+ */
+function navSections({ canSeeAudit, canManageMembers, modules, featured }: NavProps) {
+  const isFeatured = (m: OptionalModule) => modules.includes(m) && featured.includes(m);
+  const others = modules.filter((m) => !featured.includes(m)).map((m) => MODULE_ITEMS[m]);
   const main: NavItem[] = [
     { href: "/tableau-de-bord", label: "Tableau de bord", icon: LayoutDashboard },
+    ...(isFeatured("caisse") ? [MODULE_ITEMS.caisse] : []),
     { href: "/tiers", label: "Clients & fournisseurs", icon: Users },
+    ...(isFeatured("parc") ? [MODULE_ITEMS.parc] : []),
     { href: "/catalogue", label: "Produits & services", icon: Package },
     { href: "/ventes", label: "Devis & factures", icon: FileText },
     { href: "/reglements", label: "Règlements", icon: Banknote },
     { href: "/depenses", label: "Dépenses", icon: Receipt },
     { href: "/tresorerie", label: "Trésorerie", icon: Wallet },
     { href: "/comptabilite", label: "Comptabilité", icon: BookOpen },
-    { href: "/caisse", label: "Caisse", icon: Store },
+    ...others,
   ];
   const settings: NavItem[] = [
     { href: "/parametres/entreprise", label: "Entreprise", icon: Building2 },

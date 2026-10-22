@@ -159,6 +159,10 @@ export const companies = pgTable(
     invoicePrefix: text("invoice_prefix").notNull().default("FA"),
     creditNotePrefix: text("credit_note_prefix").notNull().default("AV"),
     quotePrefix: text("quote_prefix").notNull().default("DE"),
+    /** Domaines d'activité déclarés (src/lib/activities.ts). */
+    activities: text("activities").array().notNull().default(sql`'{}'::text[]`),
+    /** Modules optionnels actifs ; ils déterminent l'agencement de la navigation. */
+    modules: text("modules").array().notNull().default(sql`'{}'::text[]`),
     isDemo: boolean("is_demo").notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -167,6 +171,11 @@ export const companies = pgTable(
     check("companies_fy_month_ck", sql`${t.fiscalYearStartMonth} between 1 and 12`),
     check("companies_terms_ck", sql`${t.paymentTermsDays} between 0 and 60`),
     check("companies_currency_ck", sql`${t.currency} ~ '^[A-Z]{3}$'`),
+    check(
+      "companies_activities_ck",
+      sql`${t.activities} <@ array['vente_vehicules', 'materiel_agricole_tp', 'reparation_entretien', 'commerce_detail', 'restauration', 'artisanat_btp', 'negoce', 'services']::text[]`,
+    ),
+    check("companies_modules_ck", sql`${t.modules} <@ array['caisse', 'parc']::text[]`),
   ],
 );
 
@@ -989,6 +998,62 @@ export const paymentReminders = pgTable(
   ],
 );
 
+// ─── Parc matériel (module « parc ») ────────────────────────────────────────
+
+/**
+ * Matériel détenu par un client (véhicule, tracteur, engin…), vendu ou suivi par l'entreprise.
+ * Le propriétaire peut changer (revente, reprise) : chaque changement est tracé dans le
+ * journal d'audit. Pas de suppression : archivage.
+ */
+export const equipment = pgTable(
+  "equipment",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
+    thirdPartyId: uuid("third_party_id").notNull(),
+    category: text("category").$type<"vehicle" | "agricultural" | "construction" | "other">().notNull(),
+    brand: text("brand").notNull(),
+    model: text("model").notNull(),
+    /** Numéro de série, ou numéro VIN pour un véhicule (17 caractères). */
+    serialNumber: text("serial_number"),
+    registration: text("registration"),
+    year: smallint("year"),
+    meterValue: integer("meter_value"),
+    meterUnit: text("meter_unit").$type<"km" | "h">(),
+    /** AAAA-MM-JJ */
+    soldOn: text("sold_on"),
+    /** Facture de vente émise au même client. */
+    salesDocumentId: uuid("sales_document_id"),
+    warrantyEndsOn: text("warranty_ends_on"),
+    notes: text("notes"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("equipment_id_company_uq").on(t.id, t.companyId),
+    uniqueIndex("equipment_company_serial_uq").on(t.companyId, sql`upper(${t.serialNumber})`).where(sql`${t.serialNumber} is not null`),
+    index("equipment_company_party_idx").on(t.companyId, t.thirdPartyId),
+    index("equipment_company_registration_idx").on(t.companyId, t.registration),
+    foreignKey({
+      name: "equipment_third_party_company_fk",
+      columns: [t.thirdPartyId, t.companyId],
+      foreignColumns: [thirdParties.id, thirdParties.companyId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "equipment_sales_document_company_fk",
+      columns: [t.salesDocumentId, t.companyId],
+      foreignColumns: [salesDocuments.id, salesDocuments.companyId],
+    }).onDelete("restrict"),
+    check("equipment_category_ck", sql`${t.category} in ('vehicle', 'agricultural', 'construction', 'other')`),
+    check("equipment_year_ck", sql`${t.year} is null or ${t.year} between 1900 and 2100`),
+    check("equipment_meter_ck", sql`(${t.meterValue} is null) = (${t.meterUnit} is null) and (${t.meterValue} is null or ${t.meterValue} >= 0)`),
+    check("equipment_meter_unit_ck", sql`${t.meterUnit} is null or ${t.meterUnit} in ('km', 'h')`),
+    check("equipment_sold_on_ck", sql`${t.soldOn} is null or ${t.soldOn} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`),
+    check("equipment_warranty_ck", sql`${t.warrantyEndsOn} is null or ${t.warrantyEndsOn} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`),
+  ],
+);
+
 // ─── Pièces jointes ─────────────────────────────────────────────────────────
 
 /**
@@ -1001,7 +1066,7 @@ export const attachments = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "restrict" }),
-    entityType: text("entity_type").$type<"expense" | "sales_document" | "third_party">().notNull(),
+    entityType: text("entity_type").$type<"expense" | "sales_document" | "third_party" | "equipment">().notNull(),
     entityId: uuid("entity_id").notNull(),
     fileName: text("file_name").notNull(),
     mimeType: text("mime_type").notNull(),
@@ -1014,7 +1079,7 @@ export const attachments = pgTable(
   },
   (t) => [
     index("attachments_entity_idx").on(t.companyId, t.entityType, t.entityId),
-    check("attachments_entity_ck", sql`${t.entityType} in ('expense', 'sales_document', 'third_party')`),
+    check("attachments_entity_ck", sql`${t.entityType} in ('expense', 'sales_document', 'third_party', 'equipment')`),
     check("attachments_size_ck", sql`${t.size} > 0`),
     check("attachments_sha_ck", sql`${t.sha256} ~ '^[0-9a-f]{64}$'`),
   ],
@@ -1299,3 +1364,4 @@ export type CashSession = typeof cashSessions.$inferSelect;
 export type CashTicket = typeof cashTickets.$inferSelect;
 export type CashTicketLine = typeof cashTicketLines.$inferSelect;
 export type CashClosure = typeof cashClosures.$inferSelect;
+export type Equipment = typeof equipment.$inferSelect;

@@ -89,3 +89,15 @@ Lecture : `listPayments`, `getPayment`, `paymentsForInvoice`, `invoiceBalances` 
 | `listEntries`, `trialBalance`, `generalLedger`, `agedBalances`, `checkLedger` | `accounting.read` | Journal, balance, grand livre, échéancier, contrôles |
 | `GET /api/exports/fec?exercice=AAAA` | `exports.run` | FEC de l'exercice (tracé : `accounting.fec_exported`) |
 | `npm run accounting:backfill` | administration technique | Reprise idempotente des opérations antérieures |
+
+## Itération 13 (domaines d’activité, parc matériel)
+
+| Action / service | Permission | Effet | Audit |
+|---|---|---|---|
+| `createCompanyAction` (champ `activities`) | session | Domaines d’activité enregistrés ; modules suggérés activés (`src/lib/activities.ts`) | `company.created` (activités, modules) |
+| `updateCompanyAction` (`activities`, `modules`) | `company.update` | Activités et modules complémentaires (caisse, parc) | `company.updated` |
+| `navigationModules` | — (interne) | Modules affichés : activés, ou contenant déjà des données ; ordre du menu selon l’activité | — |
+| `createEquipmentAction`, `updateEquipmentAction` | `thirdparties.write` | Matériel d’un client ; facture de vente émise au même client ; n° de série unique dans l’entreprise | `equipment.created`, `equipment.updated`, `equipment.owner_changed` (ancien et nouveau propriétaire) |
+| `archiveEquipmentAction` | `thirdparties.write` | Archivage / restauration (pas de suppression) | `equipment.archived` / `equipment.restored` |
+| `invoicesOfPartyAction` | `thirdparties.read` | Factures émises au client, pour le rattachement | — |
+| `listEquipment`, `getEquipment`, `equipmentHistory`, `parcSummary` | `thirdparties.read` | Liste, fiche, historique (journal d’audit), indicateurs du tableau de bord | — |

@@ -10,7 +10,7 @@ Source de vérité : `src/server/security/permissions.ts`. Testée par `tests/un
 | members.manage — ajouter / changer les rôles | ✓ | ✓ | | | | |
 | audit.read — consulter le journal d'audit | ✓ | ✓ | ✓ | | | |
 | audit.verify — vérifier l'intégrité | ✓ | ✓ | ✓ | | | |
-| thirdparties.read / write | ✓ / ✓ | ✓ / ✓ | ✓ / – | ✓ / ✓ | ✓ / – | ✓ / – |
+| thirdparties.read / write — tiers, contacts et parc matériel | ✓ / ✓ | ✓ / ✓ | ✓ / – | ✓ / ✓ | ✓ / – | ✓ / – |
 | catalog.read / write | ✓ / ✓ | ✓ / ✓ | ✓ / – | ✓ / ✓ | ✓ / – | ✓ / – |
 | sales.read / write | ✓ / ✓ | ✓ / ✓ | ✓ / – | ✓ / ✓ | | ✓ / – |
 | sales.issue — émettre factures et avoirs | ✓ | ✓ | | ✓ | | |
@@ -24,6 +24,7 @@ Source de vérité : `src/server/security/permissions.ts`. Testée par `tests/un
 | exports.run — exports comptables / FEC | ✓ | ✓ | ✓ | | | |
 
 ## Règles complémentaires (implémentées dans les services)
+- Le parc matériel fait partie de la fiche client : il suit les droits des tiers. Les domaines d’activité et les modules se règlent avec `company.update`.
 - Seul un propriétaire peut nommer ou rétrograder un propriétaire.
 - Une entreprise conserve toujours au moins un propriétaire.
 - Un utilisateur ne peut pas modifier son propre rôle depuis l'interface.

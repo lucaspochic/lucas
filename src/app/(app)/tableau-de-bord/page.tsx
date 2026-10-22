@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Circle, FileClock, FileText } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Circle, FileClock, FilePlus, FileText, Plus, Store, Tractor, UserPlus, type LucideIcon } from "lucide-react";
 import { Card, CardBody, CardHeader, EmptyState, PageHeader } from "@/components/ui/card";
 import { FilterTabs, type SearchParams } from "@/components/data/list-controls";
 import { MonthlyChart } from "@/components/data/monthly-chart";
@@ -15,8 +15,35 @@ import { accountBalances } from "@/server/services/treasury";
 import { DOCUMENT_TYPE_LABELS } from "@/server/domain/sales";
 import { can } from "@/server/security/permissions";
 import { formatDate } from "../ventes/sales-ui";
+import { navigationModules } from "@/server/services/modules";
+import { parcSummary } from "@/server/services/equipment";
+import { todayInParis } from "@/server/domain/numbering";
 
 export const metadata: Metadata = { title: "Tableau de bord" };
+
+interface Shortcut {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+/** Raccourcis adaptés à l’activité : les modules mis en avant passent en premier. */
+function Shortcuts({ items }: { items: Shortcut[] }) {
+  if (items.length === 0) return null;
+  return (
+    <nav aria-label="Raccourcis" className="mb-6 flex flex-wrap gap-2">
+      {items.map((i) => (
+        <Link
+          key={i.href}
+          href={i.href}
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-[13px] font-medium text-foreground shadow-sm hover:border-accent hover:text-accent"
+        >
+          <i.icon className="size-4" aria-hidden /> {i.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
 
 function Kpi({ label, value, hint, href, tone }: { label: string; value: string; hint?: string; href?: string; tone?: "danger" }) {
   const body = (
@@ -52,6 +79,20 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     return <PageHeader title={`Bonjour ${session.fullName.split(" ")[0]}`} description={company.tradeName || company.legalName} />;
   }
   const d = await getDashboard(db, ctx, period);
+  const nav = await navigationModules(db, company);
+  const showParc = nav.visible.includes("parc") && can(ctx, "thirdparties.read");
+  const parc = showParc ? await parcSummary(db, ctx, todayInParis()) : null;
+  const shortcuts: Shortcut[] = [
+    ...(nav.featured.includes("caisse") && can(ctx, "cash.operate") ? [{ href: "/caisse", label: "Ouvrir la caisse", icon: Store }] : []),
+    ...(nav.featured.includes("parc") && can(ctx, "thirdparties.write") ? [{ href: "/parc/nouveau", label: "Ajouter un matériel", icon: Tractor }] : []),
+    ...(can(ctx, "sales.write")
+      ? [
+          { href: "/ventes/nouveau", label: "Nouvelle facture", icon: Plus },
+          { href: "/ventes/nouveau?type=devis", label: "Nouveau devis", icon: FilePlus },
+        ]
+      : []),
+    ...(can(ctx, "thirdparties.write") ? [{ href: "/tiers/nouveau", label: "Nouveau client", icon: UserPlus }] : []),
+  ];
   const [spent, balances] = await Promise.all([
     can(ctx, "purchases.read") ? expensesTotal(db, ctx, d.period.from, d.period.to) : Promise.resolve(null),
     can(ctx, "treasury.read") ? accountBalances(db, ctx) : Promise.resolve(null),
@@ -75,6 +116,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           />
         }
       />
+
+      <Shortcuts items={shortcuts} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi label="Chiffre d'affaires HT" value={formatEuro(d.revenueExclTax)} hint={`${d.invoiceCount} facture(s), avoirs déduits`} href="/ventes" />
@@ -111,6 +154,17 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </Card>
 
         <div className="space-y-6">
+          {parc && (
+            <Card>
+              <Link href="/parc" className="block p-5 hover:opacity-80">
+                <p className="text-[13px] text-foreground-muted">Parc matériel</p>
+                <p className="tabular mt-1 text-2xl font-semibold tracking-tight">{parc.active} en service</p>
+                <p className={`mt-1 text-xs ${parc.warrantySoon > 0 ? "text-warning" : "text-foreground-subtle"}`}>
+                  {parc.warrantySoon > 0 ? `${parc.warrantySoon} garantie(s) arrivant à échéance sous 60 jours` : "Aucune garantie n’arrive à échéance dans les 60 jours"}
+                </p>
+              </Link>
+            </Card>
+          )}
           <Card>
             <CardHeader title="TVA collectée (estimation)" />
             <CardBody>

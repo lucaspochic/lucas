@@ -56,6 +56,8 @@ export default async function CompanySettingsPage({ searchParams }: { searchPara
           invoicePrefix: company.invoicePrefix,
           creditNotePrefix: company.creditNotePrefix,
           quotePrefix: company.quotePrefix,
+          activities: company.activities,
+          modules: company.modules,
         }}
       />
     </>
