@@ -42,13 +42,13 @@ test("parcours : inscription, facturation, règlement, double authentification",
   await expect(page.getByText(/enregistr/i).first()).toBeVisible();
 
   // Client.
-  await page.goto("/tiers/nouveau");
+  await page.goto("/clients/nouveau");
   await fill(page, "#name", "Jeanne Cliente");
   await fill(page, "#billingLine1", "2 place du Marché");
   await fill(page, "#billingPostalCode", "69002");
   await fill(page, "#billingCity", "Lyon");
   await page.getByRole("button", { name: "Créer la fiche" }).click();
-  await expect(page).toHaveURL(/\/tiers\/[0-9a-f-]{36}/);
+  await expect(page).toHaveURL(/\/clients\/[0-9a-f-]{36}/);
 
   // Facture : brouillon puis émission.
   await page.goto("/ventes/nouveau?type=facture");

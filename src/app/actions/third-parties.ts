@@ -16,23 +16,30 @@ import {
 } from "@/server/services/third-parties";
 import { CSV_MAX_BYTES } from "@/server/domain/csv";
 import { AppError } from "@/server/errors";
+import { isPartySection, partyHref, PARTY_SECTIONS } from "@/lib/party-sections";
 
-export async function createThirdPartyAction(values: unknown): Promise<ActionResult> {
-  let id: string;
+/** Une fiche est visible sous /clients et /fournisseurs : les deux vues sont rafraîchies. */
+function revalidateParty(id?: string) {
+  for (const section of PARTY_SECTIONS) revalidatePath(id ? `/${section}/${id}` : `/${section}`);
+}
+
+export async function createThirdPartyAction(values: unknown, section?: unknown): Promise<ActionResult> {
+  let href: string;
   try {
     const { ctx } = await requireCompanyContext();
-    id = (await createThirdParty(await getDb(), ctx, values)).id;
+    const party = await createThirdParty(await getDb(), ctx, values);
+    href = partyHref(party, isPartySection(section) ? section : undefined);
   } catch (err) {
     return toActionError(err);
   }
-  redirect(`/tiers/${id}?cree=1`);
+  redirect(`${href}?cree=1`);
 }
 
 export async function updateThirdPartyAction(id: string, values: unknown): Promise<ActionResult> {
   try {
     const { ctx } = await requireCompanyContext();
     await updateThirdParty(await getDb(), ctx, String(id), values);
-    revalidatePath(`/tiers/${id}`);
+    revalidateParty(id);
     return { ok: true, message: "Fiche enregistrée." };
   } catch (err) {
     return toActionError(err);
@@ -43,8 +50,8 @@ export async function archiveThirdPartyAction(id: string, archived: boolean): Pr
   try {
     const { ctx } = await requireCompanyContext();
     await setThirdPartyArchived(await getDb(), ctx, String(id), archived === true);
-    revalidatePath("/tiers");
-    revalidatePath(`/tiers/${id}`);
+    revalidateParty();
+    revalidateParty(id);
     return { ok: true, message: archived ? "Tiers archivé." : "Tiers restauré." };
   } catch (err) {
     return toActionError(err);
@@ -55,7 +62,7 @@ export async function addContactAction(thirdPartyId: string, values: unknown): P
   try {
     const { ctx } = await requireCompanyContext();
     await addContact(await getDb(), ctx, String(thirdPartyId), values);
-    revalidatePath(`/tiers/${thirdPartyId}`);
+    revalidateParty(thirdPartyId);
     return { ok: true, message: "Contact ajouté." };
   } catch (err) {
     return toActionError(err);
@@ -66,7 +73,7 @@ export async function removeContactAction(thirdPartyId: string, contactId: strin
   try {
     const { ctx } = await requireCompanyContext();
     await removeContact(await getDb(), ctx, String(contactId));
-    revalidatePath(`/tiers/${thirdPartyId}`);
+    revalidateParty(thirdPartyId);
     return { ok: true, message: "Contact supprimé." };
   } catch (err) {
     return toActionError(err);
@@ -80,7 +87,7 @@ export async function importThirdPartiesAction(content: string): Promise<ActionR
       throw new AppError("VALIDATION", "Fichier trop volumineux (2 Mo au maximum).");
     }
     const report = await importThirdPartiesCsv(await getDb(), ctx, content);
-    if (report.imported > 0) revalidatePath("/tiers");
+    if (report.imported > 0) revalidateParty();
     return { ok: true, data: report };
   } catch (err) {
     return toActionError(err);

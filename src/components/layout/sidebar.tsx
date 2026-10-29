@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Store,
   Tractor,
+  Truck,
   Users,
   Wallet,
   type LucideIcon,
@@ -54,11 +55,13 @@ function navSections({ canSeeAudit, canManageMembers, modules, featured }: NavPr
   const main: NavItem[] = [
     { href: "/tableau-de-bord", label: "Tableau de bord", icon: LayoutDashboard },
     ...(isFeatured("caisse") ? [MODULE_ITEMS.caisse] : []),
-    { href: "/tiers", label: "Clients & fournisseurs", icon: Users },
+    { href: "/clients", label: "Clients", icon: Users },
     ...(isFeatured("parc") ? [MODULE_ITEMS.parc] : []),
     { href: "/catalogue", label: "Produits & services", icon: Package },
     { href: "/ventes", label: "Devis & factures", icon: FileText },
     { href: "/reglements", label: "Règlements", icon: Banknote },
+    // Côté achats : les fournisseurs précèdent les dépenses qu'ils facturent.
+    { href: "/fournisseurs", label: "Fournisseurs", icon: Truck },
     { href: "/depenses", label: "Dépenses", icon: Receipt },
     { href: "/tresorerie", label: "Trésorerie", icon: Wallet },
     { href: "/comptabilite", label: "Comptabilité", icon: BookOpen },

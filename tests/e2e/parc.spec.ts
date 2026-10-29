@@ -16,12 +16,13 @@ test("parc : activité « matériel agricole », menu adapté, matériel rattach
   await page.getByRole("button", { name: "Créer l'entreprise" }).click();
   await expect(page).toHaveURL(/\/parametres\/entreprise/);
 
-  // Menu : le parc suit « Clients & fournisseurs » ; la caisse n'est pas proposée.
+  // Menu : le parc suit « Clients » ; la caisse n'est pas proposée.
   const nav = page.getByRole("navigation", { name: "Navigation principale" });
   const labels = await nav.getByRole("link").allInnerTexts();
   const items = labels.map((l) => l.trim());
-  expect(items.indexOf("Parc matériel")).toBe(items.indexOf("Clients & fournisseurs") + 1);
+  expect(items.indexOf("Parc matériel")).toBe(items.indexOf("Clients") + 1);
   expect(items).not.toContain("Caisse");
+  expect(items.indexOf("Fournisseurs")).toBe(items.indexOf("Dépenses") - 1);
 
   // Les paramètres reflètent le choix (activité et module cochés).
   await expect(page.getByRole("checkbox", { name: /Vente de matériel agricole/ })).toBeChecked();
@@ -29,10 +30,10 @@ test("parc : activité « matériel agricole », menu adapté, matériel rattach
   await expect(page.locator('input[name="modules"][value="caisse"]')).not.toBeChecked();
 
   // Client puis matériel ajouté depuis sa fiche.
-  await page.goto("/tiers/nouveau");
+  await page.goto("/clients/nouveau");
   await page.locator("#name").fill("GAEC des Prés");
   await page.getByRole("button", { name: "Créer la fiche" }).click();
-  await expect(page).toHaveURL(/\/tiers\/[0-9a-f-]{36}/);
+  await expect(page).toHaveURL(/\/clients\/[0-9a-f-]{36}/);
   await page.locator('a[href^="/parc/nouveau?client="]').click();
   await expect(page).toHaveURL(/\/parc\/nouveau\?client=/);
   await page.locator("#category").selectOption("agricultural");

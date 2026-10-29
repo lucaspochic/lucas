@@ -30,7 +30,7 @@ export default async function NewSalesDocumentPage({ searchParams }: { searchPar
             title="Aucun client"
             description="Créez d'abord la fiche du client à facturer."
             action={
-              <Link href="/tiers/nouveau" className="text-sm font-medium text-accent hover:underline">
+              <Link href="/clients/nouveau" className="text-sm font-medium text-accent hover:underline">
                 Créer un client
               </Link>
             }

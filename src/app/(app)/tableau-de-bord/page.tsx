@@ -91,7 +91,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           { href: "/ventes/nouveau?type=devis", label: "Nouveau devis", icon: FilePlus },
         ]
       : []),
-    ...(can(ctx, "thirdparties.write") ? [{ href: "/tiers/nouveau", label: "Nouveau client", icon: UserPlus }] : []),
+    ...(can(ctx, "thirdparties.write") ? [{ href: "/clients/nouveau", label: "Nouveau client", icon: UserPlus }] : []),
   ];
   const [spent, balances] = await Promise.all([
     can(ctx, "purchases.read") ? expensesTotal(db, ctx, d.period.from, d.period.to) : Promise.resolve(null),

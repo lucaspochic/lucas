@@ -46,7 +46,7 @@ export default async function PaymentPage({ params }: { params: Promise<{ id: st
           <CardBody>
             <dl className="divide-y divide-border text-[13px]">
               {row("Montant", <span className="tabular text-base font-semibold">{formatEuro(p.amount)}</span>)}
-              {row("Client", <Link href={`/tiers/${p.thirdPartyId}`} className="text-accent hover:underline">{`${partyName} (${partyCode})`}</Link>)}
+              {row("Client", <Link href={`/clients/${p.thirdPartyId}`} className="text-accent hover:underline">{`${partyName} (${partyCode})`}</Link>)}
               {row("Type de client", PARTY_TYPE_LABELS[p.partyTypeSnapshot])}
               {row("Date du paiement", formatDate(p.paymentDate))}
               {row("Mode", PAYMENT_METHOD_LABELS[p.method])}

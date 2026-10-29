@@ -113,7 +113,7 @@ export default async function EquipmentListPage({ searchParams }: { searchParams
                       </span>
                     </td>
                     <td className="px-5 py-3">
-                      <Link href={`/tiers/${e.thirdPartyId}`} className="hover:text-accent">
+                      <Link href={`/clients/${e.thirdPartyId}`} className="hover:text-accent">
                         {e.partyName}
                       </Link>
                     </td>

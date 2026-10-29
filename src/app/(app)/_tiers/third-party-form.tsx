@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { PARTY_TYPE_LABELS, PARTY_TYPES, thirdPartySchema, type ThirdPartyInput } from "@/lib/schemas";
 import { createThirdPartyAction, updateThirdPartyAction } from "@/app/actions/third-parties";
+import type { PartySection } from "@/lib/party-sections";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/form-controls";
@@ -13,11 +14,14 @@ import { FormAlert } from "@/components/ui/form-alert";
 
 export function ThirdPartyForm({
   id,
+  section,
   defaults,
   readOnly = false,
   defaultTermsDays,
 }: {
   id?: string;
+  /** Rubrique d'origine : la fiche créée s'y ouvre si le rôle choisi le permet. */
+  section: PartySection;
   defaults: ThirdPartyInput;
   readOnly?: boolean;
   defaultTermsDays: number;
@@ -40,7 +44,7 @@ export function ThirdPartyForm({
   const onSubmit = handleSubmit((values) =>
     startTransition(async () => {
       setError(null);
-      const result = id ? await updateThirdPartyAction(id, values) : await createThirdPartyAction(values);
+      const result = id ? await updateThirdPartyAction(id, values) : await createThirdPartyAction(values, section);
       if (result?.ok) {
         toast.success(result.message ?? "Enregistré.");
         form.reset(values);

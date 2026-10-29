@@ -21,9 +21,9 @@ export default async function NewExpensePage() {
           <EmptyState
             icon={<Users className="size-5" aria-hidden />}
             title="Aucun fournisseur"
-            description="Créez d'abord la fiche du fournisseur (cochez « Fournisseur »)."
+            description="Créez d'abord la fiche du fournisseur."
             action={
-              <Link href="/tiers/nouveau" className="text-sm font-medium text-accent hover:underline">
+              <Link href="/fournisseurs/nouveau" className="text-sm font-medium text-accent hover:underline">
                 Créer un fournisseur
               </Link>
             }

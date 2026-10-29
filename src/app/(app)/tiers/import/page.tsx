@@ -4,10 +4,13 @@ import { CsvImportForm } from "@/components/data/csv-import-form";
 import { importThirdPartiesAction } from "@/app/actions/third-parties";
 import { requirePermission } from "@/server/http/session";
 import { THIRD_PARTY_CSV_HEADERS } from "@/server/services/third-parties";
+import { isPartySection, SECTION_INFO } from "@/lib/party-sections";
 
 export const metadata: Metadata = { title: "Importer des tiers" };
 
-export default async function ImportThirdPartiesPage() {
+export default async function ImportThirdPartiesPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const retour = (await searchParams).retour;
+  const back = isPartySection(retour) ? retour : "clients";
   await requirePermission("thirdparties.write");
   return (
     <>
@@ -15,7 +18,7 @@ export default async function ImportThirdPartiesPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardBody>
-            <CsvImportForm action={importThirdPartiesAction} backHref="/tiers" backLabel="Voir la liste" />
+            <CsvImportForm action={importThirdPartiesAction} backHref={`/${back}`} backLabel={`Voir les ${SECTION_INFO[back].title.toLowerCase()}`} />
           </CardBody>
         </Card>
         <Card>

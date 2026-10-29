@@ -241,6 +241,13 @@ describe("import / export CSV", () => {
     expect(report).toEqual({ imported: 2, errors: [] });
     const csv = await exportThirdPartiesCsv(h.db, a.ctx);
     expect(csv).toContain("Import Un");
+    // Export par rubrique : clients seuls, ou fournisseurs seuls.
+    const clientsCsv = await exportThirdPartiesCsv(h.db, a.ctx, "clients");
+    expect(clientsCsv).toContain("Import Un");
+    expect(clientsCsv).not.toContain("Import Deux");
+    const suppliersCsv = await exportThirdPartiesCsv(h.db, a.ctx, "fournisseurs");
+    expect(suppliersCsv).toContain("Import Deux");
+    expect(suppliersCsv).not.toContain("Import Un");
     // Réimport dans l'autre entreprise : mêmes données, codes conservés.
     const again = await importThirdPartiesCsv(h.db, b.ctx, csv);
     expect(again.errors).toEqual([]);

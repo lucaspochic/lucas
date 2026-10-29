@@ -3,7 +3,7 @@ import { Plus, Tractor } from "lucide-react";
 import { Badge, Card, CardBody, CardHeader, EmptyState } from "@/components/ui/card";
 import { EQUIPMENT_CATEGORY_LABELS } from "@/lib/schemas";
 import type { listEquipmentOfParty } from "@/server/services/equipment";
-import { warrantyBadge } from "../../parc/equipment-ui";
+import { warrantyBadge } from "../parc/equipment-ui";
 
 type Row = Awaited<ReturnType<typeof listEquipmentOfParty>>[number];
 

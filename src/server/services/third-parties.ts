@@ -255,12 +255,19 @@ const TYPE_FROM_LABEL: Record<string, ThirdPartyData["partyType"]> = {
 
 const yes = (v: string | undefined) => ["oui", "o", "1", "x", "true", "vrai", "yes"].includes((v ?? "").trim().toLowerCase());
 
-export async function exportThirdPartiesCsv(db: Executor, ctx: CompanyContext): Promise<string> {
+/** Export CSV des tiers actifs, éventuellement limité aux clients ou aux fournisseurs. */
+export async function exportThirdPartiesCsv(db: Executor, ctx: CompanyContext, role?: "clients" | "fournisseurs"): Promise<string> {
   assertPermission(ctx, "exports.run");
   const rows = await db
     .select()
     .from(thirdParties)
-    .where(and(eq(thirdParties.companyId, ctx.companyId), isNull(thirdParties.archivedAt)))
+    .where(
+      and(
+        eq(thirdParties.companyId, ctx.companyId),
+        isNull(thirdParties.archivedAt),
+        role === "clients" ? eq(thirdParties.isCustomer, true) : role === "fournisseurs" ? eq(thirdParties.isSupplier, true) : undefined,
+      ),
+    )
     .orderBy(asc(thirdParties.code));
   return toCsv(
     THIRD_PARTY_CSV_HEADERS,

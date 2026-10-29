@@ -7,7 +7,7 @@ L'application n'expose pas encore d'API REST publique. Les opérations passent p
 | Méthode | Chemin | Auth | Réponse |
 |---|---|---|---|
 | GET | `/api/health` | non | `200 {"status":"ok"}` ou `503 {"status":"error"}` |
-| GET | `/api/exports/tiers` | session + `exports.run` | CSV UTF-8 (BOM, « ; »), tiers actifs ; 401 / 403 sinon |
+| GET | `/api/exports/tiers` | session + `exports.run` | CSV UTF-8 (BOM, « ; »), tiers actifs ; `?role=clients` ou `?role=fournisseurs` limite à une rubrique ; 401 / 403 sinon |
 | GET | `/api/exports/catalogue` | session + `exports.run` | CSV des articles actifs, décimaux à la française |
 
 ## Server Actions (`src/app/actions`)
@@ -101,3 +101,7 @@ Lecture : `listPayments`, `getPayment`, `paymentsForInvoice`, `invoiceBalances` 
 | `archiveEquipmentAction` | `thirdparties.write` | Archivage / restauration (pas de suppression) | `equipment.archived` / `equipment.restored` |
 | `invoicesOfPartyAction` | `thirdparties.read` | Factures émises au client, pour le rattachement | — |
 | `listEquipment`, `getEquipment`, `equipmentHistory`, `parcSummary` | `thirdparties.read` | Liste, fiche, historique (journal d’audit), indicateurs du tableau de bord | — |
+
+### Rubriques Clients et Fournisseurs
+
+Un tiers reste une seule fiche (table `third_parties`, rôles `is_customer` / `is_supplier`), présentée dans deux rubriques : `/clients` et `/fournisseurs` (liste, création, fiche). Un tiers qui a les deux rôles figure dans les deux, avec un lien de l'une à l'autre. Une fiche ouverte dans une rubrique qui ne correspond pas à son rôle est redirigée (`src/lib/party-sections.ts`) ; les anciens liens `/tiers` et `/tiers/{id}` redirigent aussi. `createThirdPartyAction(values, rubrique)` ouvre la fiche créée dans la rubrique d'origine si le rôle choisi le permet. L'import CSV reste commun (`/tiers/import`).

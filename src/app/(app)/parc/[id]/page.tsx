@@ -101,7 +101,7 @@ export default async function EquipmentPage({
             <CardBody className="space-y-2 text-[13px]">
               <p>
                 <span className="text-foreground-muted">Propriétaire : </span>
-                <Link href={`/tiers/${item.thirdPartyId}`} className="font-medium hover:text-accent">
+                <Link href={`/clients/${item.thirdPartyId}`} className="font-medium hover:text-accent">
                   {partyName}
                 </Link>{" "}
                 <span className="text-foreground-subtle">({partyCode})</span>
